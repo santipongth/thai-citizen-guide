@@ -1,90 +1,11 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { agencies, suggestedQuestions, mockAgentSteps, mockConversation, type ChatMessage, type AgentStep } from "@/data/mockData";
-import { cn } from "@/lib/utils";
+import { agencies, suggestedQuestions, mockAgentSteps, mockConversation, type ChatMessage } from "@/data/mockData";
 import { useSearchParams } from "react-router-dom";
-
-function AgentStepDisplay({ steps, visibleCount }: { steps: AgentStep[]; visibleCount: number }) {
-  return (
-    <div className="bg-muted/50 rounded-lg p-3 mb-3 space-y-1.5">
-      <p className="text-xs font-medium text-muted-foreground mb-2">กระบวนการทำงานของ AI Agent:</p>
-      {steps.slice(0, visibleCount).map((step, i) => {
-        const isActive = i === visibleCount - 1 && visibleCount <= steps.length;
-        const isDone = i < visibleCount - 1 || visibleCount > steps.length;
-        return (
-          <div key={i} className="flex items-center gap-2 text-xs animate-fade-in">
-            <span>{step.icon}</span>
-            <span className={cn(
-              isDone && 'text-foreground',
-              isActive && 'text-primary font-medium',
-            )}>
-              {step.label}
-            </span>
-            {isDone && <span className="text-green-600 text-[10px]">✓</span>}
-            {isActive && <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function MessageBubble({ message, onRate }: { message: ChatMessage; onRate?: (id: string, rating: 'up' | 'down') => void }) {
-  const isUser = message.role === 'user';
-  return (
-    <div className={cn("flex gap-3 mb-4", isUser && "flex-row-reverse")}>
-      <div className={cn(
-        "w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm",
-        isUser ? "bg-primary text-primary-foreground" : "gov-gradient text-white"
-      )}>
-        {isUser ? '👤' : 'AI'}
-      </div>
-      <div className={cn("max-w-[75%] space-y-2", isUser && "text-right")}>
-        <div className={cn(
-          "rounded-2xl px-4 py-3 text-sm leading-relaxed",
-          isUser
-            ? "bg-primary text-primary-foreground rounded-tr-sm"
-            : "bg-card border border-border rounded-tl-sm"
-        )}>
-          {!isUser && message.agentSteps && <AgentStepDisplay steps={message.agentSteps} visibleCount={message.agentSteps.length + 1} />}
-          <div className="whitespace-pre-wrap">{message.content}</div>
-        </div>
-        {!isUser && message.sources && (
-          <div className="flex flex-wrap gap-1.5">
-            {message.sources.map((src, i) => (
-              <a key={i} href={src.url} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[10px] bg-accent text-accent-foreground px-2 py-1 rounded-full hover:bg-accent/80 transition-colors">
-                📎 {src.agency}: {src.title}
-              </a>
-            ))}
-          </div>
-        )}
-        {/* Rating */}
-        {!isUser && onRate && (
-          <div className="flex items-center gap-1">
-            {message.rating ? (
-              <span className="text-xs text-muted-foreground">
-                {message.rating === 'up' ? '👍 ขอบคุณสำหรับ feedback!' : '👎 ขอบคุณ จะปรับปรุงต่อไป'}
-              </span>
-            ) : (
-              <>
-                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={() => onRate(message.id, 'up')}>
-                  <ThumbsUp className="h-3.5 w-3.5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={() => onRate(message.id, 'down')}>
-                  <ThumbsDown className="h-3.5 w-3.5" />
-                </Button>
-              </>
-            )}
-          </div>
-        )}
-        <p className="text-[10px] text-muted-foreground">{message.timestamp}</p>
-      </div>
-    </div>
-  );
-}
+import { MessageBubble } from "@/components/chat/MessageBubble";
+import { AgentStepDisplay } from "@/components/chat/AgentStepDisplay";
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
