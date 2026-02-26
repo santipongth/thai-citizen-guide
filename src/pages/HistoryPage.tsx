@@ -4,10 +4,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Search, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { useChatHistory } from "@/hooks/useChatHistory";
+import { ConversationDetailDialog } from "@/components/history/ConversationDetailDialog";
+import type { HistoryItem } from "@/services/historyApi";
 
 export default function HistoryPage() {
   const [search, setSearch] = useState("");
   const [filterAgency, setFilterAgency] = useState<string | null>(null);
+  const [selectedConv, setSelectedConv] = useState<HistoryItem | null>(null);
   const { data: conversations = [], isLoading } = useChatHistory(search, filterAgency || undefined);
 
   const allAgencies = ['อย.', 'กรมสรรพากร', 'กรมการปกครอง', 'กรมที่ดิน'];
@@ -56,7 +59,7 @@ export default function HistoryPage() {
       {!isLoading && (
         <div className="space-y-2">
           {conversations.map((conv) => (
-            <Card key={conv.id} className="cursor-pointer hover:bg-accent/30 transition-colors">
+            <Card key={conv.id} className="cursor-pointer hover:bg-accent/30 transition-colors" onClick={() => setSelectedConv(conv)}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
@@ -91,6 +94,12 @@ export default function HistoryPage() {
           )}
         </div>
       )}
+
+      <ConversationDetailDialog
+        conversation={selectedConv}
+        open={!!selectedConv}
+        onOpenChange={(open) => { if (!open) setSelectedConv(null); }}
+      />
     </div>
   );
 }
