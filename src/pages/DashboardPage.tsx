@@ -1,13 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area,
 } from "recharts";
-import { MessageSquare, TrendingUp, Clock, ThumbsUp, Loader2, RefreshCw, Activity } from "lucide-react";
+import { MessageSquare, TrendingUp, Clock, ThumbsUp, Loader2, Activity } from "lucide-react";
 import { useDashboardStats, useAgencyUsage, useWeeklyTrend, useCategoryData } from "@/hooks/useDashboard";
 import { useAgencies } from "@/hooks/useAgencies";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 
 function AnimatedNumber({ value, suffix = "" }: { value: string; suffix?: string }) {
   return (
@@ -39,11 +40,25 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export default function DashboardPage() {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+
   const { data: stats, isLoading: statsLoading, dataUpdatedAt } = useDashboardStats();
   const { data: agencyUsage, isLoading: usageLoading } = useAgencyUsage();
   const { data: weeklyTrend } = useWeeklyTrend();
   const { data: categoryStats } = useCategoryData();
   const { data: agencies } = useAgencies();
+
+  // Theme-aware colors
+  const chartColors = useMemo(() => ({
+    grid: isDark ? "hsl(220 15% 25%)" : "hsl(214 25% 92%)",
+    tick: isDark ? "hsl(215 15% 60%)" : "hsl(215 15% 50%)",
+    primary: isDark ? "hsl(213 65% 60%)" : "hsl(213 70% 45%)",
+    dotStroke: isDark ? "hsl(220 18% 14%)" : "white",
+    palette: isDark
+      ? ["hsl(145 50% 50%)", "hsl(213 65% 60%)", "hsl(25 80% 60%)", "hsl(280 45% 60%)"]
+      : ["hsl(145 55% 40%)", "hsl(213 70% 45%)", "hsl(25 85% 55%)", "hsl(280 50% 50%)"],
+  }), [isDark]);
 
   const [lastUpdated, setLastUpdated] = useState("");
   useEffect(() => {
@@ -135,23 +150,23 @@ export default function DashboardPage() {
               <AreaChart data={weeklyTrend} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradientQuestions" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(213 70% 45%)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(213 70% 45%)" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor={chartColors.primary} stopOpacity={isDark ? 0.25 : 0.3} />
+                    <stop offset="95%" stopColor={chartColors.primary} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(214 25% 92%)" vertical={false} />
-                <XAxis dataKey="day" tick={{ fontSize: 11, fill: "hsl(215 15% 50%)" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "hsl(215 15% 50%)" }} axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} vertical={false} />
+                <XAxis dataKey="day" tick={{ fontSize: 11, fill: chartColors.tick }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: chartColors.tick }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
                 <Area
                   type="monotone"
                   dataKey="questions"
                   name="คำถาม"
-                  stroke="hsl(213 70% 45%)"
+                  stroke={chartColors.primary}
                   strokeWidth={2.5}
                   fill="url(#gradientQuestions)"
-                  dot={{ r: 4, fill: "hsl(213 70% 45%)", stroke: "white", strokeWidth: 2 }}
-                  activeDot={{ r: 6, fill: "hsl(213 70% 45%)", stroke: "white", strokeWidth: 2 }}
+                  dot={{ r: 4, fill: chartColors.primary, stroke: chartColors.dotStroke, strokeWidth: 2 }}
+                  activeDot={{ r: 6, fill: chartColors.primary, stroke: chartColors.dotStroke, strokeWidth: 2 }}
                   animationDuration={1200}
                   animationEasing="ease-out"
                 />
@@ -183,7 +198,7 @@ export default function DashboardPage() {
                     animationEasing="ease-out"
                   >
                     {agencyUsage?.map((entry, i) => (
-                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} stroke="none" />
+                      <Cell key={i} fill={chartColors.palette[i % chartColors.palette.length]} stroke="none" />
                     ))}
                   </Pie>
                   <Tooltip content={<CustomTooltip />} />
@@ -194,7 +209,7 @@ export default function DashboardPage() {
                   <div key={i} className="group">
                     <div className="flex items-center justify-between text-xs mb-1">
                       <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: chartColors.palette[i % chartColors.palette.length] }} />
                         <span className="text-foreground font-medium">{entry.name}</span>
                       </div>
                       <span className="text-muted-foreground">{((entry.value / totalUsage) * 100).toFixed(0)}%</span>
@@ -204,7 +219,7 @@ export default function DashboardPage() {
                         className="h-full rounded-full transition-all duration-700"
                         style={{
                           width: `${(entry.value / totalUsage) * 100}%`,
-                          backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
+                          backgroundColor: chartColors.palette[i % chartColors.palette.length],
                         }}
                       />
                     </div>
@@ -226,9 +241,9 @@ export default function DashboardPage() {
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={categoryStats} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(214 25% 92%)" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(215 15% 50%)" }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="category" width={110} tick={{ fontSize: 11, fill: "hsl(215 15% 50%)" }} axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 10, fill: chartColors.tick }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="category" width={110} tick={{ fontSize: 11, fill: chartColors.tick }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar
                   dataKey="count"
@@ -238,7 +253,7 @@ export default function DashboardPage() {
                   animationEasing="ease-out"
                 >
                   {categoryStats?.map((_, i) => (
-                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    <Cell key={i} fill={chartColors.palette[i % chartColors.palette.length]} />
                   ))}
                 </Bar>
               </BarChart>
