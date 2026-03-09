@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.feedback-stats]
 verify_jwt = false
+
+[functions.parse-api-spec]
+verify_jwt = false
