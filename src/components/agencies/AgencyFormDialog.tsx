@@ -289,6 +289,36 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
                   <p className="text-[11px] text-muted-foreground text-center py-2">ยังไม่มี endpoint — กดเพิ่ม หรือ Upload API Spec</p>
                 )}
               </div>
+
+              {/* Response Schema */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Response Schema (LLM Parse Guide)</Label>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => setResponseSchema([...responseSchema, { field: '', type: 'string', description: '' }])}>
+                    <Plus className="h-3 w-3" /> เพิ่ม
+                  </Button>
+                </div>
+                {responseSchema.map((f, i) => (
+                  <div key={i} className="flex gap-2 items-start">
+                    <Input value={f.field} onChange={(e) => setResponseSchema(responseSchema.map((r, j) => j === i ? { ...r, field: e.target.value } : r))} placeholder="field.path" className="h-8 text-xs flex-1" />
+                    <Select value={f.type} onValueChange={(v) => setResponseSchema(responseSchema.map((r, j) => j === i ? { ...r, type: v } : r))}>
+                      <SelectTrigger className="h-8 w-[90px] text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {["string", "number", "boolean", "array", "object", "date"].map((t) => (
+                          <SelectItem key={t} value={t}>{t}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input value={f.description} onChange={(e) => setResponseSchema(responseSchema.map((r, j) => j === i ? { ...r, description: e.target.value } : r))} placeholder="คำอธิบาย" className="h-8 text-xs flex-1" />
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setResponseSchema(responseSchema.filter((_, j) => j !== i))}>
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+                {responseSchema.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground text-center py-2">ยังไม่มี schema — กดเพิ่ม หรือ Upload API Spec เพื่อสร้างอัตโนมัติ</p>
+                )}
+              </div>
             </div>
           )}
 
