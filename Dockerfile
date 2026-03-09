@@ -18,7 +18,7 @@ FROM nginx:alpine AS production
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 RUN printf 'server {\n\
-    listen 80;\n\
+    listen 8080;\n\
     root /usr/share/nginx/html;\n\
     index index.html;\n\
 \n\
@@ -27,7 +27,7 @@ RUN printf 'server {\n\
     }\n\
 }\n' > /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget -qO- http://localhost/ || exit 1
+    CMD wget -qO- http://localhost:8080/ || exit 1
 CMD ["nginx", "-g", "daemon off;"]
