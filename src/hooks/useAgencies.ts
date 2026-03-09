@@ -66,6 +66,7 @@ export function useCreateAgency() {
           rate_limit_rpm: agency.rateLimitRpm,
           request_format: agency.requestFormat,
           api_endpoints: agency.apiEndpoints,
+          response_schema: agency.responseSchema,
           api_spec_raw: agency.apiSpecRaw,
         },
       });
