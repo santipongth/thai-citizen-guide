@@ -140,6 +140,7 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
         rateLimitRpm: rateLimitRpm ? parseInt(rateLimitRpm) : null,
         requestFormat,
         apiEndpoints: apiEndpoints.filter(ep => ep.path),
+        responseSchema: responseSchema.filter(f => f.field),
       } : {}),
     });
   };
