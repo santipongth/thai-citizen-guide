@@ -117,8 +117,9 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
       if (parsed.rate_limit_rpm) setRateLimitRpm(String(parsed.rate_limit_rpm));
       if (parsed.request_format) setRequestFormat(parsed.request_format);
       if (parsed.endpoints?.length) setApiEndpoints(parsed.endpoints);
+      if (parsed.response_schema?.length) setResponseSchema(parsed.response_schema);
 
-      toast.success(`สำเร็จ! พบ ${parsed.endpoints?.length || 0} endpoints`);
+      toast.success(`สำเร็จ! พบ ${parsed.endpoints?.length || 0} endpoints, ${parsed.response_schema?.length || 0} response fields`);
     } catch (err: any) {
       toast.error("ไม่สามารถ parse spec ได้: " + (err.message || "Unknown error"));
     } finally {
