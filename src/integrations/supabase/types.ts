@@ -16,7 +16,12 @@ export type Database = {
     Tables: {
       agencies: {
         Row: {
+          api_endpoints: Json | null
           api_key_name: string | null
+          api_spec_raw: string | null
+          auth_header: string | null
+          auth_method: string | null
+          base_path: string | null
           color: string
           connection_type: string
           created_at: string
@@ -26,13 +31,20 @@ export type Database = {
           id: string
           logo: string
           name: string
+          rate_limit_rpm: number | null
+          request_format: string | null
           short_name: string
           status: string
           total_calls: number
           updated_at: string
         }
         Insert: {
+          api_endpoints?: Json | null
           api_key_name?: string | null
+          api_spec_raw?: string | null
+          auth_header?: string | null
+          auth_method?: string | null
+          base_path?: string | null
           color?: string
           connection_type?: string
           created_at?: string
@@ -42,13 +54,20 @@ export type Database = {
           id?: string
           logo?: string
           name: string
+          rate_limit_rpm?: number | null
+          request_format?: string | null
           short_name: string
           status?: string
           total_calls?: number
           updated_at?: string
         }
         Update: {
+          api_endpoints?: Json | null
           api_key_name?: string | null
+          api_spec_raw?: string | null
+          auth_header?: string | null
+          auth_method?: string | null
+          base_path?: string | null
           color?: string
           connection_type?: string
           created_at?: string
@@ -58,6 +77,8 @@ export type Database = {
           id?: string
           logo?: string
           name?: string
+          rate_limit_rpm?: number | null
+          request_format?: string | null
           short_name?: string
           status?: string
           total_calls?: number
