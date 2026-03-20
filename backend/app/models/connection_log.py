@@ -8,7 +8,7 @@ from tortoise import fields, models
 
 
 class ConnectionLog(models.Model):
-    id = fields.UUIDField(pk=True, default=uuid.uuid4)
+    id = fields.UUIDField(primary_key=True, default=uuid.uuid4)
     agency: fields.ForeignKeyRelation = fields.ForeignKeyField(
         "models.Agency",
         related_name="connection_logs",
