@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { X, Plus, Upload, Loader2, Trash2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/apiClient";
 import { toast } from "sonner";
 import type { Agency, ApiEndpoint, ResponseField } from "@/types/agency";
 
@@ -103,11 +103,8 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
       setParsing(true);
       const specText = await file.text();
 
-      const { data, error } = await supabase.functions.invoke('parse-api-spec', {
-        body: { specText },
-      });
+      const data = await api.post('/api/v1/agencies/parse-spec', { spec_text: specText });
 
-      if (error) throw new Error(error.message);
       if (!data?.success || !data?.data) throw new Error('Failed to parse spec');
 
       const parsed = data.data;

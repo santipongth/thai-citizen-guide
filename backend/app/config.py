@@ -1,0 +1,48 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    # App
+    APP_NAME: str = "AI Chatbot Portal API"
+    APP_VERSION: str = "1.0.0"
+    DEBUG: bool = False
+
+    # Database
+    DATABASE_URL: str = "postgres://postgres:password@localhost:5432/ai_chatbot"
+
+    # CORS
+    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+
+    # LLM (AI Gateway — Gemini via Lovable or OpenAI-compatible endpoint)
+    LLM_API_KEY: str = ""
+    LLM_API_URL: str = "https://ai.gateway.lovable.dev/v1/chat/completions"
+    LLM_MODEL: str = "google/gemini-3-flash-preview"
+
+    # JWT authentication
+    JWT_SECRET: str = "change-me-in-production-use-a-long-random-string"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 60 * 24 * 7   # 7 days
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+
+settings = Settings()
+
+# Tortoise ORM config (used by aerich and register_tortoise)
+TORTOISE_ORM = {
+    "connections": {
+        "default": settings.DATABASE_URL,
+    },
+    "apps": {
+        "models": {
+            "models": [
+                "app.models.agency",
+                "app.models.connection_log",
+                "app.models.conversation",
+                "app.models.user",
+                "aerich.models",
+            ],
+            "default_connection": "default",
+        },
+    },
+}

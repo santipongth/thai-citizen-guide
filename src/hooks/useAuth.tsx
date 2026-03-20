@@ -1,102 +1,95 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type { User, Session } from "@supabase/supabase-js";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  type ReactNode,
+} from "react";
+import { api, tokenStorage } from "@/lib/apiClient";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  displayName: string;
+  role: "user" | "admin";
+  avatarUrl: string | null;
+}
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: AuthUser | null;
   isAdmin: boolean;
   isLoading: boolean;
-  profile: { displayName: string; avatarUrl: string | null } | null;
-  signOut: () => Promise<void>;
+  signOut: () => void;
+  /** Call after a successful login/register to store token + set user */
+  setAuth: (token: string, user: AuthUser) => void;
 }
+
+// ---------------------------------------------------------------------------
+// Context
+// ---------------------------------------------------------------------------
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  session: null,
   isAdmin: false,
   isLoading: true,
-  profile: null,
-  signOut: async () => {},
+  signOut: () => {},
+  setAuth: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
 
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [profile, setProfile] = useState<AuthContextType["profile"]>(null);
 
-  const fetchUserDetails = useCallback(async (userId: string, email?: string) => {
-    try {
-      const [profileRes, roleRes] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("display_name, avatar_url")
-          .eq("id", userId)
-          .single(),
-        supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", userId)
-          .eq("role", "admin")
-          .maybeSingle(),
-      ]);
-
-      if (profileRes.data) {
-        setProfile({
-          displayName: (profileRes.data as any).display_name || email || "",
-          avatarUrl: (profileRes.data as any).avatar_url,
-        });
-      }
-
-      setIsAdmin(!!roleRes.data);
-    } catch {
-      // Fail silently
+  // On mount: if a token exists verify it with /auth/me
+  useEffect(() => {
+    const token = tokenStorage.get();
+    if (!token) {
+      setIsLoading(false);
+      return;
     }
+
+    api
+      .get<{ user: AuthUser }>("/api/v1/auth/me")
+      .then(({ user }) => setUser(user))
+      .catch(() => {
+        // Token invalid/expired — clear it
+        tokenStorage.clear();
+        setUser(null);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
-  useEffect(() => {
-    // Set up listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+  const setAuth = useCallback((token: string, authUser: AuthUser) => {
+    tokenStorage.set(token);
+    setUser(authUser);
+  }, []);
 
-        if (session?.user) {
-          // Use setTimeout to avoid Supabase deadlock warning
-          setTimeout(() => {
-            fetchUserDetails(session.user.id, session.user.email ?? undefined).then(() => {
-              setIsLoading(false);
-            });
-          }, 0);
-        } else {
-          setProfile(null);
-          setIsAdmin(false);
-          setIsLoading(false);
-        }
-      }
-    );
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        setIsLoading(false);
-      }
-      // If session exists, onAuthStateChange will fire and handle it
-    });
-
-    return () => subscription.unsubscribe();
-  }, [fetchUserDetails]);
-
-  const signOut = async () => {
-    await supabase.auth.signOut();
-  };
+  const signOut = useCallback(() => {
+    tokenStorage.clear();
+    setUser(null);
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, isLoading, profile, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAdmin: user?.role === "admin",
+        isLoading,
+        signOut,
+        setAuth,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

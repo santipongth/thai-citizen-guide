@@ -12,7 +12,7 @@ import { ConnectionTestResult, type TestResult } from "@/components/agencies/Con
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/apiClient";
 
 const connectionTypeColors: Record<string, string> = {
   MCP: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
@@ -36,15 +36,14 @@ export default function AgencyDetailPage() {
   const agency = agencies.find((a) => a.id === id);
 
   const handleTestConnection = async () => {
-    if (!agency?.endpointUrl) return;
+    if (!agency) return;
     setTestLoading(true);
     setTestResult(null);
     try {
-      const { data, error } = await supabase.functions.invoke('agency-manage', {
-        method: 'POST',
-        body: { action: 'test', connection_type: agency.connectionType, endpoint_url: agency.endpointUrl },
+      const data = await api.post(`/api/v1/agencies/${agency.id}/test`, {
+        connection_type: agency.connectionType,
+        endpoint_url: agency.endpointUrl,
       });
-      if (error) throw error;
       setTestResult(data as TestResult);
     } catch {
       setTestResult({ success: false, protocol: 'REST API', version: '-', steps: [], latency: '0ms', error: 'Request failed' });

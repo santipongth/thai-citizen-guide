@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/apiClient";
+import { useAuth, type AuthUser } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ import { UserPlus } from "lucide-react";
 
 export default function SignupPage() {
   const navigate = useNavigate();
+  const { setAuth } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -22,20 +24,18 @@ export default function SignupPage() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { display_name: displayName },
-        emailRedirectTo: window.location.origin,
-      },
-    });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("สมัครสมาชิกสำเร็จ! กรุณาตรวจสอบอีเมลเพื่อยืนยันบัญชี");
-      navigate("/login");
+    try {
+      const res = await api.post<{ access_token: string; user: AuthUser }>(
+        "/api/v1/auth/register",
+        { email, password, display_name: displayName }
+      );
+      setAuth(res.access_token, res.user);
+      toast.success("สมัครสมาชิกสำเร็จ!");
+      navigate("/", { replace: true });
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "สมัครสมาชิกไม่สำเร็จ");
+    } finally {
+      setLoading(false);
     }
   };
 
