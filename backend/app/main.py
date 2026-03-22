@@ -48,10 +48,9 @@ app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description=(
-        "Central AI Chatbot Portal API — FastAPI + Tortoise ORM backend.\n\n"
-        "**MCP server** (for LLM clients) is available at `/mcp/sse`.\n\n"
-        "**REST API** endpoints are under `/api/v1`.\n\n"
-        "**Seed endpoints** (first-time setup) are under `/api/v1/seed`."
+        "Central AI Chatbot Portal API.\n\n"
+        "**MCP server** (for LLM clients) is available at `/mcp/`.\n\n"
+        "**REST API** endpoints are under `/api/v1`."
     ),
     docs_url="/docs",
     redoc_url="/redoc",
@@ -64,7 +63,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -84,9 +83,6 @@ app.include_router(feedback.router, prefix="/api/v1")
 
 # ---------------------------------------------------------------------------
 # MCP server — mount as sub-application
-# Accessible at:
-#   SSE  →  GET  /mcp
-#   POST →  POST /mcp/messages
 # ---------------------------------------------------------------------------
 
 app.mount("/mcp", mcp_app)

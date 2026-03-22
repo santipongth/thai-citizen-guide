@@ -36,10 +36,7 @@ TORTOISE_ORM = {
     "apps": {
         "models": {
             "models": [
-                "app.models.agency",
-                "app.models.connection_log",
-                "app.models.conversation",
-                "app.models.user",
+                "app.models",
                 "aerich.models",
             ],
             "default_connection": "default",
