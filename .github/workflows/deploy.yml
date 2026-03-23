@@ -29,12 +29,11 @@ jobs:
     if: needs.check-deploy.outputs.should_deploy == 'true'
     runs-on: self-hosted   # ← self-hosted runner ของคุณ
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
+    defaults:
+      run:
+        working-directory: /home/xver/thai-citizen-guide
 
+    steps:
       - name: Pull latest changes
         run: |
           echo "📥 Pulling latest changes..."
