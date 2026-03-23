@@ -11,17 +11,17 @@ jobs:
     outputs:
       should_deploy: ${{ steps.check.outputs.should_deploy }}
     steps:
-      - name: Check commit message for "deploy"
+      - name: Check commit message for "xver"
         id: check
         run: |
           COMMIT_MSG="${{ github.event.head_commit.message }}"
           echo "Commit message: $COMMIT_MSG"
-          if echo "$COMMIT_MSG" | grep -qi "deploy"; then
+          if echo "$COMMIT_MSG" | grep -qi "xver"; then
             echo "should_deploy=true" >> $GITHUB_OUTPUT
-            echo "✅ Commit message contains 'deploy' — triggering deployment"
+            echo "✅ Commit message contains 'xver' — triggering deployment"
           else
             echo "should_deploy=false" >> $GITHUB_OUTPUT
-            echo "⏭️ No 'deploy' keyword — skipping deployment"
+            echo "⏭️ No 'xver' keyword — skipping deployment"
           fi
 
   deploy:
