@@ -4,6 +4,7 @@ import { api } from '@/lib/apiClient';
 import type { Agency } from '@/types';
 import type { AgencyRow } from '@/types/agency';
 import { mapRowToAgency } from '@/types/agency';
+import type { TestResult } from '@/components/agencies/ConnectionTestResult';
 
 // ---------------------------------------------------------------------------
 // Fetch helpers
@@ -104,19 +105,16 @@ export function useDeleteAgency() {
 }
 
 export function useTestConnection() {
-  return useMutation({
-    mutationFn: async (params: { connectionType: string; endpointUrl: string }) => {
-      // Simple HEAD-check via backend (future: add /api/v1/agencies/test-connection endpoint)
-      // For now return a positive simulation matching the original behaviour
-      return {
-        success: true,
-        steps: [
-          { label: 'DNS resolution', status: 'success' },
-          { label: 'TCP connection', status: 'success' },
-          { label: 'HTTP response', status: 'success' },
-        ],
-        latencyMs: Math.floor(80 + Math.random() * 120),
-      };
+  const qc = useQueryClient();
+
+  return useMutation<TestResult, Error, { agencyId: string }>({
+    mutationFn: async ({ agencyId }) => {
+      return await api.get<TestResult>(`/api/v1/agencies/${agencyId}/test`);
+    },
+    onSuccess: (_data, variables) => {
+      // Refresh the connection-logs list for this ag ency so the log panel
+      // shows the new entry without a manual reload.
+      qc.invalidateQueries({ queryKey: ['connection-logs', variables.agencyId] });
     },
   });
 }

@@ -66,8 +66,7 @@ export default function AgenciesPage() {
     setTestResults((prev) => ({ ...prev, [agency.id]: null }));
     try {
       const result = await testMutation.mutateAsync({
-        connectionType: agency.connectionType,
-        endpointUrl: agency.endpointUrl || "",
+        agencyId: agency.id,
       });
       setTestResults((prev) => ({ ...prev, [agency.id]: result }));
     } catch {
