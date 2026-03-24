@@ -14,6 +14,14 @@ MCP server:
 REST API is served under /api/v1
 """
 
+import logging
+
+class EndpointFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.getMessage().find("/health") == -1
+
+logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
