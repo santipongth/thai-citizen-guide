@@ -5,10 +5,11 @@ ConnectionLog — records every agency connection test or query attempt.
 import uuid
 
 from tortoise import fields, models
+from app.utils import generate_uuid
 
 
 class ConnectionLog(models.Model):
-    id = fields.UUIDField(primary_key=True, default=uuid.uuid4)
+    id = fields.UUIDField(primary_key=True, default=generate_uuid)
     agency: fields.ForeignKeyRelation = fields.ForeignKeyField(
         "models.Agency",
         related_name="connection_logs",

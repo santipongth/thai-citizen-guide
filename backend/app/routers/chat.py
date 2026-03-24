@@ -1,412 +1,313 @@
 """
-AI Chat router — LangGraph multi-agent router with OpenAI LLM.
+AI Chat router — port of the Supabase `ai-chat` edge function.
 
-Graph
------
-  START → route (tool-calling agent: load_agencies tool + routing decision)
-        → query_agency (parallel fan-out via Send) → synthesize → END
-
-Each selected agency is queried in parallel using LangGraph Send; results
-are merged back into the main state via operator.add reducers.
-
-Agency source:  REST GET /api/v1/agencies  (settings.API_BASE_URL).
-LLM:            OpenAI-compatible endpoint configured in settings.
+Flow
+----
+1. Detect target agencies from Thai keyword matching
+2. Fetch agency response_schema configs from DB
+3. Query each agency sub-handler in parallel (async)
+4. Build a schema-guide prompt section
+5. Synthesise a unified answer using the configured LLM (Gemini via AI Gateway)
+6. Return structured response: answer, references, agentSteps, agencies, confidence
 
 Endpoint
 --------
-  POST  /api/v1/chat
+  POST  /chat
 """
 
-import json
-import operator
+import asyncio
 import time
-from typing import Annotated, Any
+from typing import Any
 
 import httpx
-from fastapi import APIRouter
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
-from langgraph.types import Send
-from langgraph.graph import END, START, StateGraph
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from typing_extensions import TypedDict
 
 from app.config import settings
-from app.llm import get_llm, load_agencies as load_agencies_tool
+from app.models.agency import Agency
+from app.models.conversation import Conversation, Message
+from app.models.user import User
+from app.schemas.chat import ChatRequest, ChatResponse
+from app.auth.dependencies import get_current_user_optional
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
-
 # ---------------------------------------------------------------------------
-# Request model
-# ---------------------------------------------------------------------------
-
-class ChatRequest(BaseModel):
-    query: str
-
-
-# ---------------------------------------------------------------------------
-# LangGraph state types
+# Agency metadata
 # ---------------------------------------------------------------------------
 
-class AgencyResult(TypedDict):
-    agency_id: str
-    agency_name: str
-    agency_short_name: str
-    answer: str
-    references: list[dict]
-    confidence: float
-    success: bool
-    error: str | None
+AGENCY_NAME_MAP: dict[str, str] = {
+    "fda": "สำนักงานคณะกรรมการอาหารและยา",
+    "revenue": "กรมสรรพากร",
+    "dopa": "กรมการปกครอง",
+    "land": "กรมที่ดิน",
+}
 
+AGENCY_DISPLAY_MAP: dict[str, str] = {
+    "fda": "สำนักงาน อย.",
+    "revenue": "กรมสรรพากร",
+    "dopa": "กรมการปกครอง",
+    "land": "กรมที่ดิน",
+}
 
-class AgentStep(TypedDict):
-    icon: str
-    label: str
-    status: str   # "done" | "error"
+AGENCY_ICON_MAP: dict[str, str] = {
+    "fda": "🏥",
+    "revenue": "💰",
+    "dopa": "🏛️",
+    "land": "🗺️",
+}
 
+# ---------------------------------------------------------------------------
+# Keyword-based agency detection (matches Deno original)
+# ---------------------------------------------------------------------------
 
-class ChatState(TypedDict):
-    query: str
-    agencies: list[dict]                                         # from agencies://list
-    target_ids: list[str]                                        # router's decision
-    agency_results: Annotated[list[AgencyResult], operator.add]  # fan-in (parallel)
-    agent_steps: Annotated[list[AgentStep], operator.add]        # fan-in (parallel)
-    answer: str
-    references: list[dict]
-    confidence: float
+def detect_agencies(query: str) -> list[str]:
+    q = query.lower()
+    matched: list[str] = []
 
+    if any(k in q for k in ["ยา", "อาหาร", "เครื่องสำอาง", "อย.", "พาราเซตามอล", "นำเข้า", "ผลิตภัณฑ์สุขภาพ"]):
+        matched.append("fda")
+    if any(k in q for k in ["ภาษี", "ลดหย่อน", "สรรพากร", "vat", "ยื่นแบบ", "เงินได้"]):
+        matched.append("revenue")
+    if any(k in q for k in ["บัตรประชาชน", "ทะเบียนราษฎร์", "ทะเบียนบ้าน", "ปกครอง", "เปลี่ยนชื่อ", "แจ้งเกิด"]):
+        matched.append("dopa")
+    if any(k in q for k in ["ที่ดิน", "โฉนด", "ราคาประเมิน", "จดทะเบียน", "รังวัด", "โอนที่ดิน"]):
+        matched.append("land")
 
-# Per-agency mini-state (used as Send payload)
-class AgencyQueryState(TypedDict):
-    query: str
-    agency: dict
+    if not matched:
+        matched.append("fda")   # default fallback
+    return matched
 
 
 # ---------------------------------------------------------------------------
-# Node: route  (tool-calling agent — loads agencies then decides routing)
+# Agency sub-handlers (Python ports of the Deno agency-* edge functions)
 # ---------------------------------------------------------------------------
 
-async def route(state: ChatState) -> dict:
-    """
-    LLM agent that:
-      1. Calls load_agencies tool to fetch active agencies.
-      2. Decides which agency IDs are relevant to the query.
-    Returns agencies + target_ids in one step.
-    """
-    query = state["query"]
-    llm_with_tools = get_llm(temperature=0).bind_tools([load_agencies_tool])
-
-    messages = [
-        SystemMessage(content=(
-            "You are a router for a Thai government AI chatbot. "
-            "First, call the load_agencies tool to discover available agencies. "
-            "After receiving the list, return ONLY a JSON object: "
-            "{\"agency_ids\": [\"<uuid>\", ...]} with 1–3 IDs that are CLEARLY "
-            "relevant to the user's question. "
-            "If the question is general or no agency clearly matches, "
-            "return {\"agency_ids\": []}."
-        )),
-        HumanMessage(content=f"Route this query: {query}"),
-    ]
-
-    # ── Step 1: LLM calls load_agencies tool ────────────────────────────────
-    agencies: list[dict] = []
-    response = await llm_with_tools.ainvoke(messages)
-
-    if response.tool_calls:
-        messages.append(response)
-        for tc in response.tool_calls:
-            raw = await load_agencies_tool.ainvoke(tc.get("args") or {})
-            parsed = json.loads(raw) if isinstance(raw, str) else raw
-            agencies = parsed if isinstance(parsed, list) else parsed.get("agencies", [])
-            messages.append(ToolMessage(content=json.dumps(agencies, ensure_ascii=False), tool_call_id=tc["id"]))
-
-        # ── Step 2: LLM routes based on the loaded agencies ─────────────────
-        routing_response = await get_llm(temperature=0).ainvoke(messages)
-        content = routing_response.content.strip()
-    else:
-        # LLM skipped the tool — treat its reply as the routing answer
-        content = response.content.strip()
-
-    # ── Parse agency_ids ────────────────────────────────────────────────────
-    target_ids: list[str] = []
-    try:
-        if "```" in content:
-            parts = content.split("```")
-            content = parts[1][4:] if parts[1].startswith("json") else parts[1]
-        target_ids = json.loads(content.strip()).get("agency_ids", [])[:3]
-    except Exception as exc:
-        print(f"[chat:route] Could not parse routing response: {exc}")
-
-    known_ids = {str(a["id"]) for a in agencies}
-    target_ids = [aid for aid in target_ids if aid in known_ids]
-
-    if target_ids:
-        selected_names = [a["name"] for a in agencies if str(a["id"]) in target_ids]
-        step_label = f"เลือกหน่วยงาน: {', '.join(selected_names)}"
-    else:
-        step_label = "ไม่พบหน่วยงานที่ตรงกัน — ตอบด้วย AI ทั่วไป"
-
-    return {
-        "agencies":    agencies,
-        "target_ids":  target_ids,
-        "agent_steps": [
-            {"icon": "🔍", "label": "กำลังวิเคราะห์คำถาม...",  "status": "done"},
-            {"icon": "📋", "label": step_label,                 "status": "done"},
+_FDA_RESPONSES: dict[str, dict] = {
+    "ยา": {
+        "answer": (
+            "**ระบบตรวจสอบทะเบียนยา - สำนักงาน อย.**\n\n"
+            "ยาทุกชนิดที่จำหน่ายในประเทศไทยต้องขึ้นทะเบียนกับ อย. ตาม พ.ร.บ. ยา พ.ศ. 2510\n\n"
+            "**ประเภทยา:**\n"
+            "- ยาสามัญประจำบ้าน — ซื้อได้ทั่วไป\n"
+            "- ยาอันตราย — ต้องซื้อจากร้านขายยาที่มีเภสัชกร\n"
+            "- ยาควบคุมพิเศษ — ต้องมีใบสั่งแพทย์\n\n"
+            "**การตรวจสอบ:** สามารถตรวจสอบเลขทะเบียนยาได้ที่เว็บไซต์ อย. หรือแอป \"อย. Smart Application\""
+        ),
+        "references": [
+            {"title": "ระบบตรวจสอบทะเบียนยา", "url": "https://www.fda.moph.go.th/sites/drug"},
+            {"title": "พ.ร.บ. ยา พ.ศ. 2510", "url": "https://www.fda.moph.go.th/sites/drug/law"},
         ],
-    }
+    },
+    "อาหาร": {
+        "answer": (
+            "**ระบบตรวจสอบทะเบียนอาหาร - สำนักงาน อย.**\n\n"
+            "ผลิตภัณฑ์อาหารที่จำหน่ายในประเทศไทยต้องได้รับอนุญาตจาก อย.\n\n"
+            "**เครื่องหมาย อย.:**\n"
+            "- เลข อย. 13 หลัก แสดงว่าผ่านการตรวจสอบ\n"
+            "- ตรวจสอบได้ที่เว็บไซต์ อย.\n\n"
+            "**ประเภทอาหาร:**\n"
+            "- อาหารควบคุมเฉพาะ\n- อาหารที่กำหนดคุณภาพ\n- อาหารที่ต้องมีฉลาก\n- อาหารทั่วไป"
+        ),
+        "references": [{"title": "ตรวจสอบเลข อย.", "url": "https://www.fda.moph.go.th/sites/food"}],
+    },
+    "เครื่องสำอาง": {
+        "answer": (
+            "**ระบบจดแจ้งเครื่องสำอาง - สำนักงาน อย.**\n\n"
+            "เครื่องสำอางทุกชนิดต้องจดแจ้งกับ อย. ก่อนจำหน่าย\n\n"
+            "**ขั้นตอน:**\n1. ยื่นจดแจ้งผ่านระบบ e-Submission\n"
+            "2. ตรวจสอบส่วนประกอบตามประกาศกระทรวง\n3. ได้รับเลขจดแจ้ง 10 หลัก\n\n"
+            "**สารต้องห้าม:** สารปรอท, ไฮโดรควิโนน, สเตียรอยด์"
+        ),
+        "references": [{"title": "ระบบจดแจ้งเครื่องสำอาง", "url": "https://www.fda.moph.go.th/sites/cosmetic"}],
+    },
+}
 
-
-# ---------------------------------------------------------------------------
-# Fan-out edge: route → Send(query_agency) × N
-# ---------------------------------------------------------------------------
-
-def fan_out(state: ChatState) -> list[Send] | str:
-    """Emit one Send per selected agency. Falls through to synthesize if none."""
-    agencies_by_id = {str(a["id"]): a for a in state["agencies"]}
-    sends = [
-        Send("query_agency", {"query": state["query"], "agency": agencies_by_id[aid]})
-        for aid in state["target_ids"]
-        if aid in agencies_by_id
-    ]
-    return sends if sends else "synthesize"
-
-
-# ---------------------------------------------------------------------------
-# Real endpoint caller (REST / MCP / A2A best-effort)
-# ---------------------------------------------------------------------------
-
-async def _call_real_endpoint(
-    agency: dict,
-    query: str,
-) -> tuple[str | None, list[dict], float]:
-    """
-    Try to call the agency's configured API endpoint with `query`.
-    Returns (answer_text, references, confidence) or (None, [], 0) on failure.
-    """
-    endpoint_url: str = agency.get("endpoint_url") or ""
-    api_endpoints: list[dict] = agency.get("api_endpoints") or []
-
-    if not endpoint_url or not api_endpoints:
-        return None, [], 0.0
-
-    # Pick the first endpoint that has a path
-    ep = next((e for e in api_endpoints if e.get("path")), None)
-    if not ep:
-        return None, [], 0.0
-
-    method = (ep.get("method") or "GET").upper()
-    url = endpoint_url.rstrip("/") + "/" + ep["path"].lstrip("/")
-
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            if method == "GET":
-                resp = await client.get(url, params={"q": query, "query": query})
-            else:
-                resp = await client.post(url, json={"query": query})
-
-        if resp.status_code == 200:
-            try:
-                data = resp.json()
-                return json.dumps(data, ensure_ascii=False, indent=2)[:4000], [], 0.85
-            except Exception:
-                return resp.text[:2000], [], 0.65
-    except Exception as exc:
-        print(f"[chat:endpoint] {agency.get('name')}: {exc}")
-
-    return None, [], 0.0
-
-
-# ---------------------------------------------------------------------------
-# Node: query_agency  (called in parallel via Send)
-# ---------------------------------------------------------------------------
-
-async def query_agency(state: AgencyQueryState) -> dict:
-    """
-    Query a single agency — real endpoint first, LLM fallback.
-    Returns dict with keys `agency_results` and `agent_steps` (both lists,
-    merged into ChatState via operator.add).
-    """
-    agency: dict = state["agency"]
-    query: str  = state["query"]
-
-    agency_name  = agency.get("name", "")
-    agency_short = agency.get("short_name", "")
-    agency_id    = str(agency.get("id", ""))
-
-    steps: list[AgentStep] = [{
-        "icon":   "🔗",
-        "label":  f"กำลังสืบค้นจาก {agency_short or agency_name}...",
-        "status": "done",
-    }]
-
-    # ── Attempt real endpoint ───────────────────────────────────────────────
-    answer, references, confidence = await _call_real_endpoint(agency, query)
-
-    # ── LLM fallback ────────────────────────────────────────────────────────
-    if answer is None:
-        try:
-            data_scope = ", ".join(agency.get("data_scope") or []) or "ข้อมูลทั่วไป"
-            system_prompt = (
-                f"คุณคือผู้เชี่ยวชาญด้านข้อมูลของ {agency_name} ({agency_short}).\n"
-                f"ขอบเขตข้อมูลที่รับผิดชอบ: {data_scope}.\n\n"
-                "ตอบคำถามเป็นภาษาไทย ให้ข้อมูลที่ถูกต้องและเป็นประโยชน์ "
-                "อ้างอิงกฎหมาย/ระเบียบที่เกี่ยวข้องถ้ามี "
-                "และระบุหากไม่มีข้อมูลเพียงพอ"
-            )
-            resp = await get_llm(temperature=0.2).ainvoke([
-                {"role": "system", "content": system_prompt},
-                {"role": "user",   "content": query},
-            ])
-            answer = resp.content
-            confidence = 0.75
-            steps.append({
-                "icon":   "🤖",
-                "label":  f"AI สร้างคำตอบแทน {agency_short or agency_name}",
-                "status": "done",
-            })
-        except Exception as exc:
-            print(f"[chat:query_agency] LLM fallback for {agency_name}: {exc}")
-            answer = f"ไม่สามารถดึงข้อมูลจาก {agency_name} ได้ในขณะนี้"
-            confidence = 0.0
-
-    result: AgencyResult = {
-        "agency_id":         agency_id,
-        "agency_name":       agency_name,
-        "agency_short_name": agency_short,
-        "answer":            answer or "",
-        "references":        references,
-        "confidence":        confidence,
-        "success":           bool(answer),
-        "error":             None if answer else "No data available",
-    }
-
-    return {
-        "agency_results": [result],
-        "agent_steps":    steps,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Node: synthesize
-# ---------------------------------------------------------------------------
-
-async def synthesize(state: ChatState) -> dict:
-    """Combine all agency answers into one coherent Thai response via LLM."""
-    query          = state["query"]
-    agency_results = state.get("agency_results") or []
-
-    if not agency_results:
-        # No agency was selected → answer directly with a general-purpose LLM call
-        general_answer = "ขออภัย ไม่สามารถตอบคำถามได้ในขณะนี้"
-        try:
-            resp = await get_llm(temperature=0.5).ainvoke([
-                {
-                    "role": "system",
-                    "content": (
-                        "คุณคือผู้ช่วย AI ที่ให้ข้อมูลทั่วไปเป็นภาษาไทย "
-                        "ตอบคำถามอย่างชัดเจน กระชับ และเป็นประโยชน์ "
-                        "ใช้ Markdown formatting ให้อ่านง่าย"
-                    ),
-                },
-                {"role": "user", "content": query},
-            ])
-            general_answer = resp.content
-        except Exception as exc:
-            print(f"[chat:synthesize] General LLM error: {exc}")
-        return {
-            "answer":      general_answer,
-            "references":  [],
-            "confidence":  0.6,
-            "agent_steps": [
-                {"icon": "🤖", "label": "AI ตอบคำถามทั่วไป (ไม่ผ่านหน่วยงาน)", "status": "done"},
-            ],
-        }
-
-    all_references = [
-        {"agency": r["agency_name"], **ref}
-        for r in agency_results
-        for ref in r.get("references") or []
-    ]
-    avg_confidence = sum(r["confidence"] for r in agency_results) / len(agency_results)
-
-    agency_context = "\n\n".join(
-        f"### ข้อมูลจาก {r['agency_name']} ({r['agency_short_name']})\n{r['answer']}"
-        for r in agency_results
-        if r.get("success") and r.get("answer")
-    )
-
-    if not agency_context:
-        # All agencies failed — just concatenate raw answers
-        return {
-            "answer":      "\n\n---\n\n".join(r["answer"] for r in agency_results),
-            "references":  all_references,
-            "confidence":  avg_confidence,
-            "agent_steps": [{"icon": "📝", "label": "รวบรวมข้อมูล (ไม่มีการสังเคราะห์)", "status": "done"}],
-        }
-
-    # ── LLM synthesis ───────────────────────────────────────────────────────
-    system_prompt = (
-        "คุณคือ AI ผู้ช่วยภาครัฐไทย ทำหน้าที่สังเคราะห์ข้อมูลจากหลายหน่วยงานราชการ\n\n"
-        "กฎ:\n"
-        "- ตอบเป็นภาษาไทยเสมอ\n"
-        "- ใช้ Markdown formatting (หัวข้อ, bullet, ตัวหนา) ให้อ่านง่าย\n"
-        "- อ้างอิงชื่อหน่วยงานที่เป็นแหล่งข้อมูลในคำตอบ\n"
-        "- เชื่อมโยงข้อมูลจากหลายหน่วยงานให้สอดคล้องและไม่ซ้ำซ้อน\n"
-        "- ห้ามเพิ่มข้อมูลที่ไม่มีในแหล่งที่ให้มา\n"
-        "- จบด้วยข้อแนะนำเพิ่มเติมหากเหมาะสม"
-    )
-    user_prompt = (
-        f'คำถามจากประชาชน: "{query}"\n\n'
-        f"ข้อมูลจากหน่วยงานราชการ:\n\n{agency_context}\n\n"
-        "กรุณาสังเคราะห์เป็นคำตอบที่ครบถ้วนและเข้าใจง่ายสำหรับประชาชน"
-    )
-
-    final_answer = agency_context  # fallback
-    try:
-        resp = await get_llm(temperature=0.3).ainvoke([
-            {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": user_prompt},
-        ])
-        final_answer = resp.content
-    except Exception as exc:
-        print(f"[chat:synthesize] LLM error: {exc}")
-
-    return {
-        "answer":      final_answer,
-        "references":  all_references,
-        "confidence":  avg_confidence,
-        "agent_steps": [
-            {"icon": "🤖", "label": "AI สังเคราะห์คำตอบจากทุกหน่วยงาน", "status": "done"},
-            {"icon": "📝", "label": "สังเคราะห์คำตอบเสร็จสิ้น",         "status": "done"},
+_REVENUE_RESPONSES: dict[str, dict] = {
+    "ภาษี": {
+        "answer": (
+            "**ข้อมูลภาษีเงินได้บุคคลธรรมดา - กรมสรรพากร**\n\n"
+            "ภาษีเงินได้บุคคลธรรมดาคำนวณจากเงินได้สุทธิ หลังหักค่าใช้จ่ายและค่าลดหย่อนต่างๆ\n\n"
+            "**อัตราภาษี:**\n"
+            "- 0–150,000 บาท: ยกเว้น\n- 150,001–300,000 บาท: 5%\n"
+            "- 300,001–500,000 บาท: 10%\n- 500,001–750,000 บาท: 15%\n"
+            "- 750,001–1,000,000 บาท: 20%\n- 1,000,001–2,000,000 บาท: 25%\n"
+            "- 2,000,001–5,000,000 บาท: 30%\n- มากกว่า 5,000,000 บาท: 35%\n\n"
+            "**การยื่นแบบ:** ยื่น ภ.ง.ด.90/91 ภายใน 31 มีนาคมของปีถัดไป"
+        ),
+        "references": [
+            {"title": "คำนวณภาษีเงินได้", "url": "https://www.rd.go.th/publish/29554.0.html"},
+            {"title": "ยื่นแบบออนไลน์", "url": "https://efiling.rd.go.th"},
         ],
+    },
+    "vat": {
+        "answer": (
+            "**ภาษีมูลค่าเพิ่ม (VAT) - กรมสรรพากร**\n\n"
+            "VAT อัตราปัจจุบัน 7% (รวมภาษีท้องถิ่น)\n\n"
+            "**ผู้มีหน้าที่เสียภาษี:** ผู้ประกอบการที่มีรายได้เกิน 1.8 ล้านบาทต่อปี\n\n"
+            "**การจดทะเบียน:** ยื่นจดทะเบียนภาษีมูลค่าเพิ่มที่สรรพากรพื้นที่ หรือผ่านระบบออนไลน์"
+        ),
+        "references": [{"title": "ข้อมูล VAT", "url": "https://www.rd.go.th/publish/6043.0.html"}],
+    },
+}
+
+_DOPA_RESPONSES: dict[str, dict] = {
+    "บัตรประชาชน": {
+        "answer": (
+            "**บัตรประจำตัวประชาชน - กรมการปกครอง**\n\n"
+            "บัตรประจำตัวประชาชนมีอายุ 8 ปี (สำหรับผู้มีอายุ 7–70 ปี)\n\n"
+            "**การทำบัตรใหม่:**\n1. ยื่นคำขอที่สำนักงานทะเบียนท้องถิ่น\n"
+            "2. เตรียมเอกสาร: สูติบัตร/ทะเบียนบ้าน\n"
+            "3. ถ่ายรูปและสแกนลายนิ้วมือ\n4. รับบัตรภายใน 3 วันทำการ\n\n"
+            "**ค่าธรรมเนียม:** 100 บาท (กรณีหมดอายุ ไม่เสียค่าธรรมเนียม)"
+        ),
+        "references": [
+            {"title": "บริการออกบัตรประชาชน", "url": "https://www.dopa.go.th/service/id_card"},
+        ],
+    },
+    "ทะเบียนบ้าน": {
+        "answer": (
+            "**ทะเบียนบ้าน - กรมการปกครอง**\n\n"
+            "**การแจ้งย้ายที่อยู่:**\n1. แจ้งย้ายออกที่เดิม\n2. แจ้งย้ายเข้าที่ใหม่\n"
+            "3. เจ้าบ้านเซ็นรับรอง\n4. ใช้เวลา 1 วันทำการ\n\n"
+            "**เอกสารที่ต้องใช้:** บัตรประชาชน + ทะเบียนบ้านเดิม"
+        ),
+        "references": [{"title": "ทะเบียนบ้าน", "url": "https://www.dopa.go.th/service/household"}],
+    },
+}
+
+_LAND_RESPONSES: dict[str, dict] = {
+    "โฉนด": {
+        "answer": (
+            "**โฉนดที่ดิน - กรมที่ดิน**\n\n"
+            "โฉนดที่ดิน (น.ส.4) เป็นเอกสารสิทธิสูงสุดในการถือครองที่ดิน\n\n"
+            "**ประเภทเอกสารสิทธิ์:**\n"
+            "- โฉนดที่ดิน (น.ส.4 จ.) — สิทธิสมบูรณ์\n"
+            "- น.ส.3 ก — สิทธิครอบครอง มีรูปถ่ายทางอากาศ\n"
+            "- ส.ป.ก. 4-01 — ที่ดินเพื่อการเกษตร\n\n"
+            "**การโอนกรรมสิทธิ์:** ทำที่สำนักงานที่ดินจังหวัด ค่าธรรมเนียม 2% ของราคาประเมิน"
+        ),
+        "references": [
+            {"title": "ตรวจสอบที่ดิน", "url": "https://www.dol.go.th/"},
+            {"title": "ราคาประเมินที่ดิน", "url": "https://property.treasury.go.th/"},
+        ],
+    },
+    "ราคาประเมิน": {
+        "answer": (
+            "**ราคาประเมินที่ดิน - กรมที่ดิน**\n\n"
+            "ราคาประเมินที่ดินกำหนดโดยกรมธนารักษ์ ใช้เป็นฐานในการคำนวณค่าธรรมเนียมการโอน\n\n"
+            "**การตรวจสอบ:** ตรวจสอบราคาประเมินได้ที่เว็บไซต์กรมธนารักษ์ หรือสำนักงานที่ดิน\n\n"
+            "**ค่าธรรมเนียมการโอน:**\n- ค่าธรรมเนียม: 2%\n- ภาษีธุรกิจเฉพาะ: 3.3% (ถือครองน้อยกว่า 5 ปี)\n- อากรแสตมป์: 0.5% (กรณีไม่เสียภาษีธุรกิจเฉพาะ)"
+        ),
+        "references": [{"title": "ราคาประเมินที่ดิน", "url": "https://property.treasury.go.th/"}],
+    },
+}
+
+
+def _query_fda(query: str) -> dict:
+    q = query.lower()
+    if any(k in q for k in ["ยา", "พาราเซตามอล", "drug"]):
+        r = _FDA_RESPONSES["ยา"]
+    elif any(k in q for k in ["อาหาร", "food"]):
+        r = _FDA_RESPONSES["อาหาร"]
+    elif any(k in q for k in ["เครื่องสำอาง", "cosmetic"]):
+        r = _FDA_RESPONSES["เครื่องสำอาง"]
+    else:
+        r = _FDA_RESPONSES["ยา"]
+    return {
+        "success": True, "agency": "fda",
+        "agencyName": AGENCY_NAME_MAP["fda"],
+        "data": {"answer": r["answer"], "references": r["references"], "confidence": 0.95},
     }
 
 
+def _query_revenue(query: str) -> dict:
+    q = query.lower()
+    r = _REVENUE_RESPONSES["vat"] if "vat" in q else _REVENUE_RESPONSES["ภาษี"]
+    return {
+        "success": True, "agency": "revenue",
+        "agencyName": AGENCY_NAME_MAP["revenue"],
+        "data": {"answer": r["answer"], "references": r["references"], "confidence": 0.93},
+    }
+
+
+def _query_dopa(query: str) -> dict:
+    q = query.lower()
+    r = _DOPA_RESPONSES["ทะเบียนบ้าน"] if "ทะเบียนบ้าน" in q else _DOPA_RESPONSES["บัตรประชาชน"]
+    return {
+        "success": True, "agency": "dopa",
+        "agencyName": AGENCY_NAME_MAP["dopa"],
+        "data": {"answer": r["answer"], "references": r["references"], "confidence": 0.91},
+    }
+
+
+def _query_land(query: str) -> dict:
+    q = query.lower()
+    r = _LAND_RESPONSES["ราคาประเมิน"] if "ราคาประเมิน" in q else _LAND_RESPONSES["โฉนด"]
+    return {
+        "success": True, "agency": "land",
+        "agencyName": AGENCY_NAME_MAP["land"],
+        "data": {"answer": r["answer"], "references": r["references"], "confidence": 0.90},
+    }
+
+
+_AGENCY_HANDLERS = {
+    "fda": _query_fda,
+    "revenue": _query_revenue,
+    "dopa": _query_dopa,
+    "land": _query_land,
+}
+
+
+async def _call_agency(agency_id: str, query: str) -> dict | None:
+    """Call the internal agency handler (async-safe wrapper)."""
+    handler = _AGENCY_HANDLERS.get(agency_id)
+    if not handler:
+        return None
+    return handler(query)
+
+
 # ---------------------------------------------------------------------------
-# Build & compile the LangGraph
+# Schema guide builder (matches Deno original)
 # ---------------------------------------------------------------------------
 
-def _build_graph() -> Any:
-    g = StateGraph(ChatState)
+def _build_schema_guide(agency_configs: list[Any], target_agencies: list[str]) -> str:
+    sections: list[str] = []
+    for agency_id in target_agencies:
+        config = None
+        for c in agency_configs:
+            sn = (c.get("short_name") or "").replace(".", "").lower()
+            name = c.get("name", "")
+            if (
+                (agency_id == "fda" and ("อย" in sn or "อาหาร" in name)) or
+                (agency_id == "revenue" and ("สรรพากร" in sn or "สรรพากร" in name)) or
+                (agency_id == "dopa" and ("ปกครอง" in sn or "ปกครอง" in name)) or
+                (agency_id == "land" and ("ที่ดิน" in sn or "ที่ดิน" in name))
+            ):
+                config = c
+                break
 
-    g.add_node("route",        route)          # tool-calling agent (load + route)
-    g.add_node("query_agency", query_agency)
-    g.add_node("synthesize",   synthesize)
+        schema = config.get("response_schema") if config else None
+        if not schema:
+            continue
 
-    g.add_edge(START, "route")
+        fields_text = "\n".join(
+            f"  - **{f['field']}** ({f['type']}): {f['description']}"
+            + (f" — ตัวอย่าง: {f['example']}" if f.get("example") else "")
+            for f in schema
+        )
+        sections.append(
+            f"#### {config['name']} ({config['short_name']})\n"
+            f"Response fields ที่สำคัญ:\n{fields_text}"
+        )
 
-    # fan_out returns list[Send] for parallel agency queries,
-    # or "synthesize" directly when no agencies matched
-    g.add_conditional_edges("route", fan_out, ["query_agency", "synthesize"])
-
-    g.add_edge("query_agency", "synthesize")
-    g.add_edge("synthesize",   END)
-
-    return g.compile()
-
-
-_graph = _build_graph()
+    if not sections:
+        return ""
+    return (
+        "\n\n## Schema Reference สำหรับ Parse ข้อมูล\n"
+        "ใช้ข้อมูล schema ด้านล่างเพื่อระบุและจัดรูปแบบข้อมูลในคำตอบให้ถูกต้อง:\n\n"
+        + "\n\n".join(sections)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -414,44 +315,172 @@ _graph = _build_graph()
 # ---------------------------------------------------------------------------
 
 @router.post("", summary="Send a query and get a synthesised AI response")
-async def chat(body: ChatRequest) -> dict:
+async def chat(body: ChatRequest, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
     start = time.time()
     query = body.query.strip()
 
     if not query:
         return {"success": False, "error": "Missing query"}
 
+    # 1. Detect target agencies
+    target_agencies = detect_agencies(query)
+
+    # 2. Fetch agency configs from DB (for schema guide)
+    agency_configs: list[dict] = []
     try:
-        state: ChatState = await _graph.ainvoke({
-            "query":          query,
-            "agencies":       [],
-            "target_ids":     [],
-            "agency_results": [],
-            "agent_steps":    [],
-            "answer":         "",
-            "references":     [],
-            "confidence":     0.0,
-        })
+        agencies = await Agency.filter(status="active").values(
+            "id", "short_name", "name", "logo", "response_schema", "api_endpoints", "connection_type"
+        )
+        agency_configs = list(agencies)
     except Exception as exc:
-        print(f"[chat] Graph error: {exc}")
-        import traceback; traceback.print_exc()
-        return {"success": False, "error": str(exc)}
+        print(f"[chat] Failed to fetch agency configs: {exc}")
+
+    # 3. Build agent steps
+    agency_display_names = [AGENCY_DISPLAY_MAP.get(a, a) for a in target_agencies]
+    agent_steps = [
+        {"icon": "🔍", "label": "กำลังวิเคราะห์คำถาม...", "status": "done"},
+        {
+            "icon": "📋",
+            "label": f"วางแผนการสืบค้น → เลือกหน่วยงาน: {', '.join(agency_display_names)}",
+            "status": "done",
+        },
+    ]
+
+    # 4. Call agencies in parallel
+    for a in target_agencies:
+        agent_steps.append({
+            "icon": "🔗",
+            "label": f"กำลังสืบค้นจาก {AGENCY_DISPLAY_MAP.get(a, a)} ...",
+            "status": "done",
+        })
+
+    results = await asyncio.gather(*[_call_agency(a, query) for a in target_agencies])
+    valid_results = [r for r in results if r is not None]
+
+    agent_steps.append({"icon": "✅", "label": "รวบรวมและประเมินผลลัพธ์", "status": "done"})
+
+    # 5. LLM synthesis
+    schema_guide = _build_schema_guide(agency_configs, target_agencies)
+    combined_answer = "\n\n---\n\n".join(r["data"]["answer"] for r in valid_results)
+
+    llm_api_key = settings.PARSE_SPEC_API_KEY
+    if llm_api_key and valid_results:
+        agent_steps.append({
+            "icon": "🤖",
+            "label": "AI กำลังสังเคราะห์คำตอบ (พร้อม Schema Guide)...",
+            "status": "done",
+        })
+
+        agency_context = "\n\n".join(
+            f"### ข้อมูลจาก {r['agencyName']}\n{r['data']['answer']}" for r in valid_results
+        )
+
+        system_prompt = (
+            "คุณคือ AI ผู้ช่วยภาครัฐไทย ทำหน้าที่สังเคราะห์ข้อมูลจากหลายหน่วยงานราชการให้เป็นคำตอบที่ชัดเจน ถูกต้อง และเข้าใจง่ายสำหรับประชาชน\n\n"
+            "กฎ:\n"
+            "- ตอบเป็นภาษาไทยเสมอ\n"
+            "- ใช้ Markdown formatting (หัวข้อ, bullet points, ตัวหนา) ให้อ่านง่าย\n"
+            "- อ้างอิงชื่อหน่วยงานที่เป็นแหล่งข้อมูลในคำตอบ\n"
+            "- หากข้อมูลจากหลายหน่วยงานเกี่ยวข้องกัน ให้เชื่อมโยงและสรุปให้เป็นคำตอบเดียวที่สอดคล้องกัน\n"
+            "- ห้ามเพิ่มข้อมูลที่ไม่มีในแหล่งข้อมูลที่ให้มา\n"
+            "- จบคำตอบด้วยข้อแนะนำเพิ่มเติมหากเหมาะสม"
+            + (
+                "\n- เมื่อมี Schema Reference ให้ใช้เป็นแนวทางในการระบุและจัดรูปแบบข้อมูลสำคัญ"
+                + schema_guide
+                if schema_guide else ""
+            )
+        )
+        user_prompt = (
+            f'คำถามจากประชาชน: "{query}"\n\n'
+            f"ข้อมูลที่สืบค้นได้จากหน่วยงานราชการ:\n\n{agency_context}\n\n"
+            "กรุณาสังเคราะห์ข้อมูลข้างต้นเป็นคำตอบที่ครบถ้วนและเข้าใจง่ายสำหรับประชาชน"
+        )
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
+                    settings.PARSE_SPEC_URL,
+                    headers={
+                        "apikey": f"{llm_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": settings.PARSE_SPEC_LLM_MODEL,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                    },
+                )
+            if resp.status_code == 200:
+                ai_data = resp.json()
+                combined_answer = (
+                    ai_data.get("choices", [{}])[0].get("message", {}).get("content")
+                    or combined_answer
+                )
+        except Exception as exc:
+            print(f"[chat] LLM error: {exc}")
+
+    agent_steps.append({"icon": "📝", "label": "สังเคราะห์คำตอบเสร็จสิ้น", "status": "done"})
+
+    all_references = [
+        {"agency": r["agencyName"], **ref}
+        for r in valid_results
+        for ref in r["data"].get("references", [])
+    ]
+
+    avg_confidence = (
+        sum(r["data"].get("confidence", 0) for r in valid_results) / len(valid_results)
+        if valid_results else 0.0
+    )
+
+    response_time = int((time.time() - start) * 1000)
+
+    if not body.conversation_id:
+        conv = await Conversation.create(
+            title=query[:50],
+            preview=query[:100],
+            agencies=[{"id": a, "name": AGENCY_DISPLAY_MAP.get(a, a), "icon": AGENCY_ICON_MAP.get(a, "")} for a in target_agencies],
+            status='success',
+            message_count=len(combined_answer),
+            response_time=response_time,
+            user_id=user.id if user else None,
+        )
+    else:
+        conv = await Conversation.get(id=body.conversation_id)
+        conv.message_count += len(combined_answer)
+        conv.response_time = response_time
+        await conv.save()
+
+    await Message.bulk_create([
+        Message(
+            conversation_id=conv.id,
+            role='user',
+            content=query,
+            agent_steps=[],
+            sources=[{"agency": r["agencyName"], **ref} for r in valid_results for ref in r["data"].get("references", [])],
+        ),
+        Message(
+            conversation_id=conv.id,
+            role='assistant',
+            content=combined_answer,
+            agent_steps=agent_steps,
+            sources=[{"agency": r["agencyName"], **ref} for r in valid_results for ref in r["data"].get("references", [])],
+        ),
+    ], ignore_conflicts=True)
 
     return {
         "success": True,
         "data": {
-            "answer":     state.get("answer", ""),
-            "references": state.get("references", []),
-            "agentSteps": state.get("agent_steps", []),
+            "answer": combined_answer,
+            "references": all_references,
+            "agentSteps": agent_steps,
             "agencies": [
-                {
-                    "id":        r["agency_id"],
-                    "name":      r["agency_name"],
-                    "shortName": r["agency_short_name"],
-                }
-                for r in state.get("agency_results", [])
+                {"id": a, "name": AGENCY_DISPLAY_MAP.get(a, a), "icon": AGENCY_ICON_MAP.get(a, "")}
+                for a in target_agencies
             ],
-            "confidence": state.get("confidence", 0.0),
+            "confidence": avg_confidence,
         },
-        "responseTime": int((time.time() - start) * 1000),
+        "conversation_id": conv.id,
+        "responseTime": response_time,
     }
