@@ -1,7 +1,7 @@
 /**
  * Axios-based HTTP client for the FastAPI backend.
  *
- * Base URL:  API_BASE_URL  (default: http://localhost:8000)
+ * Base URL:  VITE_API_BASE_URL  (default: http://localhost:8000)
  *
  * A request interceptor automatically attaches the JWT stored in
  * localStorage as  Authorization: Bearer <token>  on every request.
@@ -33,7 +33,7 @@ export const tokenStorage = {
 // Axios instance
 // ---------------------------------------------------------------------------
 
-const BASE_URL = (import.meta.env.API_BASE_URL as string | undefined) ?? '';
+const BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8000';
 
 const axiosInstance: AxiosInstance = axios.create({
   baseURL: BASE_URL,
