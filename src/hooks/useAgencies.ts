@@ -59,6 +59,7 @@ export function useCreateAgency() {
         api_endpoints: agency.apiEndpoints ?? [],
         response_schema: agency.responseSchema ?? [],
         api_spec_raw: agency.apiSpecRaw,
+        expected_payload: agency.expectedPayload ?? null,
       });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agencies'] }),
@@ -88,6 +89,7 @@ export function useUpdateAgency() {
         api_endpoints: agency.apiEndpoints,
         response_schema: agency.responseSchema,
         api_spec_raw: agency.apiSpecRaw,
+        expected_payload: agency.expectedPayload,
       });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agencies'] }),

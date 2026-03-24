@@ -106,7 +106,7 @@ export default function AgencyDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {agency.connectionType === "API" && agency.endpointUrl && (
+          {agency.endpointUrl && (
             <Button variant="outline" size="sm" className="gap-1.5" onClick={handleTestConnection} disabled={testMutation.isPending}>
               {testMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wifi className="h-3.5 w-3.5" />}
               ทดสอบการเชื่อมต่อ

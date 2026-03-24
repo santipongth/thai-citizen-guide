@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60 * 24 * 7   # 7 days
 
+    PARSE_SPEC_URL: str = "http://thaillm.or.th/api/openthaigpt/v1/chat/completions"
+    PARSE_SPEC_API_KEY: str = ""
+    PARSE_SPEC_TIMEOUT: int = 60
+    PARSE_SPEC_LLM_MODEL: str = "/model"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

@@ -10,6 +10,7 @@ import { X, Plus, Upload, Loader2, Trash2 } from "lucide-react";
 import { api } from "@/lib/apiClient";
 import { toast } from "sonner";
 import type { Agency, ApiEndpoint, ResponseField } from "@/types/agency";
+import { set } from "date-fns";
 
 const protocolInfo: Record<string, string> = {
   MCP: "Model Context Protocol — มาตรฐานการเชื่อมต่อ AI กับเครื่องมือภายนอก รองรับ tools/list, tools/call, resources/read",
@@ -47,7 +48,9 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
   const [responseSchema, setResponseSchema] = useState<ResponseField[]>([]);
   const [expectedPayload, setExpectedPayload] = useState<string>("");
   const [expectedPayloadError, setExpectedPayloadError] = useState(false);
+  const [parsedPayload, setParsedPayload] = useState<Record<string, unknown> | null>(null);
   const [parsing, setParsing] = useState(false);
+  const [apiSpecRaw, setApiSpecRaw] = useState<string>("");
 
   useEffect(() => {
     if (agency) {
@@ -69,6 +72,7 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
       setResponseSchema(agency.responseSchema || []);
       setExpectedPayload(agency.expectedPayload ? JSON.stringify(agency.expectedPayload, null, 2) : "");
       setExpectedPayloadError(false);
+      setApiSpecRaw(agency.apiSpecRaw || ""); setParsedPayload(agency.expectedPayload || null);
     } else {
       setName(""); setShortName(""); setLogo("🏢"); setDescription("");
       setConnectionType("API"); setEndpointUrl(""); setColor("hsl(213 70% 45%)");
@@ -76,6 +80,7 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
       setAuthMethod("api_key"); setAuthHeader(""); setBasePath("");
       setRateLimitRpm(""); setRequestFormat("json"); setApiEndpoints([]);
       setResponseSchema([]); setExpectedPayload(""); setExpectedPayloadError(false);
+      setApiSpecRaw(""); setParsedPayload(null);
     }
   }, [agency, open]);
 
@@ -120,6 +125,7 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
       if (parsed.endpoints?.length) setApiEndpoints(parsed.endpoints);
       if (parsed.response_schema?.length) setResponseSchema(parsed.response_schema);
       if (parsed.expected_payload) setExpectedPayload(JSON.stringify(parsed.expected_payload, null, 2));
+      setApiSpecRaw(specText);
       toast.success(`สำเร็จ! พบ ${parsed.endpoints?.length || 0} endpoints, ${parsed.response_schema?.length || 0} response fields`);
     } catch (err: any) {
       toast.error("ไม่สามารถ parse spec ได้: " + (err.message || "Unknown error"));
@@ -129,20 +135,36 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
     }
   };
 
+  useEffect(() => {
+    if (expectedPayload.trim()) {
+      try {
+        const parsed = JSON.parse(expectedPayload);
+        setParsedPayload(parsed);
+        setExpectedPayloadError(false);
+      } catch {
+        setParsedPayload(null);
+        setExpectedPayloadError(true);
+      }
+    } else {
+      setParsedPayload(null);
+      setExpectedPayloadError(false);
+    }
+  }, [expectedPayload]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !shortName) return;
 
-    let parsedPayload: Record<string, unknown> | null = null;
-    if (expectedPayload.trim()) {
-      try {
-        parsedPayload = JSON.parse(expectedPayload);
-        setExpectedPayloadError(false);
-      } catch {
-        setExpectedPayloadError(true);
-        return;
-      }
-    }
+    // let parsedPayload: Record<string, unknown> | null = null;
+    // if (expectedPayload.trim()) {
+    //   try {
+    //     parsedPayload = JSON.parse(expectedPayload);
+    //     setExpectedPayloadError(false);
+    //   } catch {
+    //     setExpectedPayloadError(true);
+    //     return;
+    //   }
+    // }
 
     onSave({
       name, shortName, logo, description, connectionType, endpointUrl, color, dataScope, status,
@@ -155,6 +177,7 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
         apiEndpoints: apiEndpoints.filter(ep => ep.path),
         responseSchema: responseSchema.filter(f => f.field),
         expectedPayload: parsedPayload,
+        apiSpecRaw,
       } : {}),
     });
   };
@@ -339,7 +362,7 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
                 <Label className="text-xs">Expected Payload (JSON)</Label>
                 <Textarea
                   value={expectedPayload}
-                  onChange={(e) => { setExpectedPayload(e.target.value); setExpectedPayloadError(false); }}
+                  onChange={(e) => { setExpectedPayload(e.target.value); }}
                   placeholder={'{\n  "query": "string",\n  "limit": 10\n}'}
                   rows={5}
                   className={`font-mono text-xs resize-y ${expectedPayloadError ? "border-destructive" : ""}`}
