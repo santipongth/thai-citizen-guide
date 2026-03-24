@@ -449,7 +449,6 @@ async def chat(body: ChatRequest, user: User | None = Depends(get_current_user_o
     else:
         conv = await Conversation.get(id=body.conversation_id)
         conv.message_count += len(combined_answer)
-        conv.response_time = response_time
         await conv.save()
 
     await Message.bulk_create([
@@ -466,6 +465,7 @@ async def chat(body: ChatRequest, user: User | None = Depends(get_current_user_o
             content=combined_answer,
             agent_steps=agent_steps,
             sources=[{"agency": r["agencyName"], **ref} for r in valid_results for ref in r["data"].get("references", [])],
+            response_time=response_time,
         ),
     ], ignore_conflicts=True)
 

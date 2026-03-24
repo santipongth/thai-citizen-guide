@@ -52,6 +52,7 @@ class Message(Model):
     sources = fields.JSONField(default=list)            # list of source references
     rating = fields.CharField(max_length=10, null=True) # up | down | None
     feedback_text = fields.TextField(null=True)
+    response_time = fields.IntField(null=True)        # in seconds
 
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)

@@ -84,7 +84,7 @@ app = FastAPI(
     description=(
         "Central AI Chatbot Portal API.\n\n"
         "**MCP SSE** (OneChat-compatible): `GET /sse` → open stream, `POST /messages/` → send commands.\n\n"
-        "**MCP Streamable-HTTP** (legacy): available at `/mcp/`.\n\n"
+        "**MCP Streamable-HTTP** (legacy): available at `/mcp`.\n\n"
         "**REST API** endpoints are under `/api/v1`."
     ),
     docs_url="/docs",
