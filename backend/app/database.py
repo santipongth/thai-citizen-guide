@@ -1,11 +1,10 @@
 from tortoise import Tortoise
 from app.config import TORTOISE_ORM
 from aerich import Command
-from aerich.utils import load_tortoise_config
 
 async def init_db() -> None:
     """Initialize Tortoise ORM and generate schemas."""
-    
+
     async with Command(tortoise_config=TORTOISE_ORM) as command:
         await command.upgrade()
 
