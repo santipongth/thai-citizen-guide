@@ -6,9 +6,8 @@ async def init_db() -> None:
     """Initialize Tortoise ORM and generate schemas."""
 
     async with Command(tortoise_config=TORTOISE_ORM) as command:
-        print(TORTOISE_ORM)
         await command.upgrade()
-        print(await command.history())
+        print(command.heads())
 
     await Tortoise.init(config=TORTOISE_ORM)
     await Tortoise.generate_schemas(safe=True)
