@@ -7,6 +7,7 @@ import { useSearchParams } from 'react-router-dom';
 import { MessageBubble } from '@/components/chat/MessageBubble';
 import { AgentStepDisplay } from '@/components/chat/AgentStepDisplay';
 import { useChat } from '@/hooks/useChat';
+import { AppLogo } from '@/components/ui/AppLogo';
 
 export default function ChatPage() {
   const {
@@ -30,19 +31,19 @@ export default function ChatPage() {
       <ScrollArea className="flex-1 p-4">
         {!hasMessages && !isTyping ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center px-4">
-            <div className="w-16 h-16 rounded-2xl gov-gradient flex items-center justify-center text-white text-2xl font-bold mb-4">AI</div>
+            <AppLogo className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold mb-4" />
             <h2 className="text-xl font-semibold text-foreground mb-2">AI Chatbot Portal กลาง</h2>
             <p className="text-sm text-muted-foreground mb-6 max-w-md">
-              ระบบบูรณาการข้อมูลหน่วยงานภาครัฐ สอบถามข้อมูลจาก 4 หน่วยงานได้ในที่เดียว
+              ระบบบูรณาการข้อมูลหน่วยงานภาครัฐ
             </p>
-            <div className="flex flex-wrap justify-center gap-3 mb-8">
+            {/* <div className="flex flex-wrap justify-center gap-3 mb-8">
               {agencies.map((a) => (
                 <div key={a.id} className="flex flex-col items-center gap-1 bg-card border border-border rounded-xl p-3 w-28">
                   <span className="text-2xl">{a.logo}</span>
                   <span className="text-[10px] text-muted-foreground text-center leading-tight">{a.shortName}</span>
                 </div>
               ))}
-            </div>
+            </div> */}
             <div className="w-full max-w-lg space-y-2">
               <p className="text-xs text-muted-foreground mb-2">ลองถามคำถามเหล่านี้:</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -62,7 +63,7 @@ export default function ChatPage() {
             ))}
             {isTyping && (
               <div className="flex items-start gap-3 mb-4">
-                <div className="w-8 h-8 rounded-full gov-gradient flex items-center justify-center text-white text-sm shrink-0">AI</div>
+                <AppLogo className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm shrink-0" />
                 <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-3 max-w-[75%]">
                   {activeStepCount > 0 ? (
                     <AgentStepDisplay steps={currentSteps} visibleCount={activeStepCount} />

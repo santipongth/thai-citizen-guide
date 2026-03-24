@@ -32,7 +32,7 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               {/* Public routes */}
-              <Route path="/public" element={<PublicPortal />} />
+              <Route path="/" element={<PublicPortal />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -40,7 +40,7 @@ const App = () => (
 
               {/* Protected admin routes */}
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-                <Route path="/" element={<ChatPage />} />
+                <Route path="/chat" element={<ChatPage />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/agencies" element={<AgenciesPage />} />
                 <Route path="/agencies/:id" element={<AgencyDetailPage />} />

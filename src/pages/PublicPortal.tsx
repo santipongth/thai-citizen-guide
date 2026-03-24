@@ -9,6 +9,7 @@ import { AgencyCards } from '@/components/public/AgencyCards';
 import { SuggestedQuestions } from '@/components/public/SuggestedQuestions';
 import { useChat } from '@/hooks/useChat';
 import { useState } from 'react';
+import { AppLogo } from '@/components/ui/AppLogo';
 
 export default function PublicPortal() {
   const {
@@ -37,10 +38,10 @@ export default function PublicPortal() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
           )}
-          <div className="w-9 h-9 rounded-xl gov-gradient flex items-center justify-center text-white font-bold text-sm shadow-md">AI</div>
+          <AppLogo className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm" />
           <span className="font-semibold text-foreground">AI Portal กลาง</span>
         </div>
-        <a href="/" className="text-xs text-primary hover:underline flex items-center gap-1 font-medium">
+        <a href="/chat" className="text-xs text-primary hover:underline flex items-center gap-1 font-medium">
           เข้าสู่ระบบเจ้าหน้าที่ <ArrowRight className="w-3 h-3" />
         </a>
       </header>
@@ -54,7 +55,7 @@ export default function PublicPortal() {
               ))}
               {isTyping && (
                 <div className="flex items-start gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-full gov-gradient flex items-center justify-center text-white text-sm shrink-0">AI</div>
+                  <AppLogo className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm shrink-0" />
                   <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-3 max-w-[75%]">
                     {activeStepCount > 0 ? (
                       <AgentStepDisplay steps={currentSteps} visibleCount={activeStepCount} />
@@ -106,14 +107,14 @@ export default function PublicPortal() {
               </div>
             </div>
 
-            <AgencyCards agencies={agencies} />
+            {/* <AgencyCards agencies={agencies} /> */}
             <SuggestedQuestions questions={suggestedQuestions} agencies={agencies} onSelect={onSend} />
           </main>
 
           <footer className="border-t border-border py-6 px-6">
             <div className="max-w-xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-md gov-gradient flex items-center justify-center text-white font-bold text-[8px]">AI</div>
+                <AppLogo className="w-6 h-6 rounded-md flex items-center justify-center text-white font-bold text-[8px]" />
                 <span className="text-xs text-muted-foreground">© 2568 AI Portal กลาง</span>
               </div>
               <div className="flex gap-4 text-xs text-muted-foreground">

@@ -112,7 +112,7 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
       setParsing(true);
       const specText = await file.text();
 
-      const data = await api.post('/api/v1/agencies/parse-spec', { spec_text: specText });
+      const data = await api.post<any>('/api/v1/agencies/parse-spec', { spec_text: specText });
 
       if (!data?.success || !data?.data) throw new Error('Failed to parse spec');
 
