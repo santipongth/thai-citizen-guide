@@ -6,13 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Activity, Clock, CheckCircle2, XCircle, Wifi, BarChart3, Loader2 } from "lucide-react";
-import { useAgencies } from "@/hooks/useAgencies";
+import { useAgencies, useTestConnection } from "@/hooks/useAgencies";
 import { useConnectionLogs } from "@/hooks/useConnectionLogs";
-import { ConnectionTestResult, type TestResult } from "@/components/agencies/ConnectionTestResult";
+import { ConnectionTestResult } from "@/components/agencies/ConnectionTestResult";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { format } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
 
 const connectionTypeColors: Record<string, string> = {
   MCP: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
@@ -30,27 +29,15 @@ export default function AgencyDetailPage() {
   const navigate = useNavigate();
   const { data: agencies = [], isLoading: agenciesLoading } = useAgencies();
   const { data: logs = [], isLoading: logsLoading } = useConnectionLogs(id);
-  const [testResult, setTestResult] = useState<TestResult | null>(null);
-  const [testLoading, setTestLoading] = useState(false);
+  const testMutation = useTestConnection();
 
   const agency = agencies.find((a) => a.id === id);
 
   const handleTestConnection = async () => {
-    if (!agency?.endpointUrl) return;
-    setTestLoading(true);
-    setTestResult(null);
-    try {
-      const { data, error } = await supabase.functions.invoke('agency-manage', {
-        method: 'POST',
-        body: { action: 'test', connection_type: agency.connectionType, endpoint_url: agency.endpointUrl },
-      });
-      if (error) throw error;
-      setTestResult(data as TestResult);
-    } catch {
-      setTestResult({ success: false, protocol: 'REST API', version: '-', steps: [], latency: '0ms', error: 'Request failed' });
-    } finally {
-      setTestLoading(false);
-    }
+    if (!agency) return;
+    await testMutation.mutateAsync({
+      agencyId: agency.id,
+    });
   };
   const stats = useMemo(() => {
     if (!logs.length) return { total: 0, success: 0, error: 0, avgLatency: 0, successRate: 0 };
@@ -120,8 +107,8 @@ export default function AgencyDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           {agency.connectionType === "API" && agency.endpointUrl && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={handleTestConnection} disabled={testLoading}>
-              {testLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wifi className="h-3.5 w-3.5" />}
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={handleTestConnection} disabled={testMutation.isPending}>
+              {testMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wifi className="h-3.5 w-3.5" />}
               ทดสอบการเชื่อมต่อ
             </Button>
           )}
@@ -141,8 +128,13 @@ export default function AgencyDetailPage() {
       </div>
 
       {/* Test Result */}
-      {(testLoading || testResult) && (
-        <ConnectionTestResult result={testResult} loading={testLoading} />
+      {(testMutation.isPending || testMutation.data || testMutation.isError) && (
+        <ConnectionTestResult
+          result={testMutation.data ?? (testMutation.isError
+            ? { success: false, protocol: agency?.connectionType ?? 'REST API', version: '-', steps: [], latency: '0ms', error: testMutation.error?.message ?? 'Request failed' }
+            : null)}
+          loading={testMutation.isPending}
+        />
       )}
 
       {/* Stats Cards */}
@@ -427,6 +419,14 @@ export default function AgencyDetailPage() {
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">API Key Name</p>
                     <p className="text-sm font-mono text-foreground">{agency.apiKeyName}</p>
+                  </div>
+                )}
+                {agency.expectedPayload && (
+                  <div className="md:col-span-2">
+                    <p className="text-xs text-muted-foreground mb-1.5">Expected Payload</p>
+                    <pre className="text-xs font-mono bg-muted rounded-md p-3 overflow-x-auto border border-border whitespace-pre-wrap break-all">
+                      {JSON.stringify(agency.expectedPayload, null, 2)}
+                    </pre>
                   </div>
                 )}
               </div>

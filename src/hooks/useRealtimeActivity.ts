@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/apiClient';
 
 export interface RealtimeEvent {
   id: string;
@@ -12,6 +12,7 @@ export interface RealtimeEvent {
 const MAX_EVENTS = 50;
 const BUCKET_SECONDS = 10;
 const MAX_BUCKETS = 30; // 5 minutes of data
+const POLL_INTERVAL_MS = 5_000;
 
 export interface ActivityBucket {
   time: string;
@@ -24,7 +25,9 @@ export function useRealtimeActivity() {
   const bucketsRef = useRef(buckets);
   bucketsRef.current = buckets;
 
-  // Initialize with empty buckets
+  // Track which conversation IDs we've already seen
+  const seenIdsRef = useRef<Set<string>>(new Set());
+
   function initBuckets(): ActivityBucket[] {
     const now = Date.now();
     return Array.from({ length: MAX_BUCKETS }, (_, i) => ({
@@ -41,18 +44,14 @@ export function useRealtimeActivity() {
   useEffect(() => {
     const interval = setInterval(() => {
       setBuckets((prev) => {
-        const newBucket: ActivityBucket = {
-          time: formatTime(new Date()),
-          count: 0,
-        };
+        const newBucket: ActivityBucket = { time: formatTime(new Date()), count: 0 };
         return [...prev.slice(1), newBucket];
       });
     }, BUCKET_SECONDS * 1000);
     return () => clearInterval(interval);
   }, []);
 
-  const handleInsert = useCallback((payload: any) => {
-    const row = payload.new;
+  const handleInsert = useCallback((row: { id: string; title?: string; agencies?: string[]; status?: string }) => {
     const event: RealtimeEvent = {
       id: row.id,
       title: row.title || 'สนทนาใหม่',
@@ -63,7 +62,7 @@ export function useRealtimeActivity() {
 
     setEvents((prev) => [event, ...prev].slice(0, MAX_EVENTS));
 
-    // Increment the last bucket
+    // Increment the last activity bucket
     setBuckets((prev) => {
       const updated = [...prev];
       updated[updated.length - 1] = {
@@ -74,19 +73,35 @@ export function useRealtimeActivity() {
     });
   }, []);
 
+  // Poll for new conversations every POLL_INTERVAL_MS
   useEffect(() => {
-    const channel = supabase
-      .channel('realtime-conversations')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'conversations' },
-        handleInsert
-      )
-      .subscribe();
+    let isFirstPoll = true;
 
-    return () => {
-      supabase.removeChannel(channel);
+    const poll = async () => {
+      try {
+        const result = await api.get<{ data: Array<{ id: string; title: string; agencies: string[]; status: string }> }>(
+          '/api/v1/conversations?limit=20'
+        );
+        const conversations = result?.data ?? [];
+
+        const newOnes: typeof conversations = [];
+        for (const conv of conversations) {
+          if (!seenIdsRef.current.has(conv.id)) {
+            seenIdsRef.current.add(conv.id);
+            if (!isFirstPoll) newOnes.push(conv);
+          }
+        }
+
+        newOnes.forEach(handleInsert);
+        isFirstPoll = false;
+      } catch {
+        // Silently ignore polling errors (e.g. when not logged in)
+      }
     };
+
+    poll();
+    const interval = setInterval(poll, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
   }, [handleInsert]);
 
   return { events, buckets, totalLive: events.length };

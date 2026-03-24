@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/apiClient';
 
 export interface ConversationMessage {
   id: string;
@@ -12,14 +12,10 @@ export interface ConversationMessage {
 }
 
 async function fetchConversationMessages(conversationId: string): Promise<ConversationMessage[]> {
-  const { data, error } = await supabase
-    .from('messages')
-    .select('*')
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true });
-
-  if (error) throw error;
-  return (data || []) as ConversationMessage[];
+  const data = await api.get<ConversationMessage[]>(
+    `/api/v1/conversations/${conversationId}/messages`
+  );
+  return data ?? [];
 }
 
 export function useConversationMessages(conversationId: string | null) {

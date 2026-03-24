@@ -4,8 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "uv run uvicorn app.main:app --reload",
-    "start": "uv run uvicorn app.main:app --host 0.0.0.0",
+    "dev": "uv run uvicorn app.main:app --reload --reload-exclude '.*,.py[cod],.sw.*,~*,.venv/*'",
     "postinstall": "uv sync"
   },
   "keywords": [],

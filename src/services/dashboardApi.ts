@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/apiClient';
 import type { DashboardStats } from '@/types';
 import { dashboardStats as fallbackStats, agencyUsageData, weeklyTrendData, categoryData } from '@/data/mockData';
 
@@ -14,14 +14,13 @@ interface DashboardApiResponse {
 }
 
 async function fetchFromApi(): Promise<DashboardApiResponse> {
-  const { data, error } = await supabase.functions.invoke('dashboard-stats');
-  if (error) throw new Error(error.message);
-  return data as DashboardApiResponse;
+  return api.get<DashboardApiResponse>('/api/v1/dashboard/stats');
 }
 
 export async function fetchDashboardStats(): Promise<DashboardStats> {
   try {
     const res = await fetchFromApi();
+    // Backend uses camelCase keys matching the original edge function output
     return res.data.stats;
   } catch {
     console.warn('Dashboard API failed, using fallback');

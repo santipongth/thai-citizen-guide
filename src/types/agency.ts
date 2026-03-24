@@ -32,6 +32,7 @@ export interface Agency {
   apiEndpoints?: ApiEndpoint[];
   responseSchema?: ResponseField[];
   apiSpecRaw?: string | null;
+  expectedPayload?: Record<string, unknown> | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -58,6 +59,7 @@ export interface AgencyRow {
   api_endpoints: ApiEndpoint[];
   response_schema: ResponseField[];
   api_spec_raw: string | null;
+  expected_payload: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }
@@ -84,6 +86,7 @@ export function mapRowToAgency(row: AgencyRow): Agency {
     apiEndpoints: row.api_endpoints,
     responseSchema: row.response_schema,
     apiSpecRaw: row.api_spec_raw,
+    expectedPayload: row.expected_payload,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

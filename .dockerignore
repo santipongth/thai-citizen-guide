@@ -1,42 +1,32 @@
-# Dependencies
+# ── Version control ───────────────────────────────────────────────────────────
+.git
+.gitignore
+
+# ── Node ──────────────────────────────────────────────────────────────────────
 node_modules
-.pnpm-store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Build output
+# ── Vite build output (rebuilt inside Docker) ─────────────────────────────────
 dist
-build
 
-# Environment files
+# ── Environment files (injected at runtime via docker-compose) ────────────────
 .env
 .env.*
 !.env.example
 
-# Logs
-*.log
-npm-debug.log*
-pnpm-debug.log*
-
-# Editor / OS
+# ── Editor / OS ───────────────────────────────────────────────────────────────
 .DS_Store
-.idea
 .vscode
+.idea
 *.swp
 *.swo
-Thumbs.db
 
-# Git
-.git
-.gitignore
+# ── Backend (excluded from the frontend build context) ───────────────────────
+backend
 
-# Docker
-.dockerignore
-docker-compose*.yaml
-
-# Test / coverage
-coverage
-.nyc_output
-
-# Misc
-README.md
+# ── Misc ──────────────────────────────────────────────────────────────────────
+*.md
 supabase
-.lovable
+docs

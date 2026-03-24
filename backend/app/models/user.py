@@ -1,0 +1,37 @@
+import uuid
+
+from tortoise import fields
+from tortoise.models import Model
+
+
+class User(Model):
+    """
+    Admin/user account for the AI Chatbot Portal.
+    Passwords are stored as bcrypt hashes — never plaintext.
+    """
+
+    id = fields.UUIDField(primary_key=True, default=uuid.uuid4)
+    email = fields.CharField(max_length=255, unique=True)
+    display_name = fields.CharField(max_length=255, null=True)
+    hashed_password = fields.CharField(max_length=500)
+    role = fields.CharField(max_length=20, default="user")     # user | admin
+    avatar_url = fields.CharField(max_length=500, null=True)
+    is_active = fields.BooleanField(default=True)
+
+    # Password-reset token (stored as a short-lived secret)
+    reset_token = fields.CharField(max_length=255, null=True)
+    reset_token_expires = fields.DatetimeField(null=True)
+
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "users"
+
+    def __str__(self) -> str:
+        return self.email
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == "admin"
+

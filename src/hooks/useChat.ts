@@ -4,6 +4,9 @@ import { sendChatQuery } from '@/services/chatApi';
 import { saveConversation } from '@/services/historyApi';
 import { updateMessageRating } from '@/services/feedbackApi';
 import { mockAgentSteps, mockConversation } from '@/data/mockData';
+import { generateUniqueId } from '@/lib/utils';
+import { set } from 'date-fns';
+
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -27,7 +30,7 @@ export function useChat() {
     if (!question || isTyping) return;
 
     const userMsg: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: generateUniqueId(),
       role: 'user',
       content: question,
       timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
@@ -52,7 +55,7 @@ export function useChat() {
         setCurrentSteps(response.data.agentSteps as AgentStep[]);
         setActiveStepCount(response.data.agentSteps.length);
 
-        const aiMsgId = crypto.randomUUID();
+        const aiMsgId = generateUniqueId();
         const aiMsg: ChatMessage = {
           id: aiMsgId,
           role: 'assistant',
@@ -93,21 +96,31 @@ export function useChat() {
         return;
       }
     } catch {
-      console.warn('API call failed, falling back to mock data');
+      // console.warn('API call failed, falling back to mock data');
+      setCurrentSteps([]);
+      setActiveStepCount(0);
+      setIsTyping(false);
+      setMessages((prev) => [...prev, {
+        id: generateUniqueId(),
+        role: 'assistant',
+        content: 'ขออภัย ฉันไม่สามารถตอบคำถามได้ในขณะนี้ โปรดลองอีกครั้งในภายหลัง',
+        timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+        rating: null,
+      }]);
     }
 
     // Fallback to mock data
-    setTimeout(() => {
-      const aiMsg: ChatMessage = {
-        ...mockConversation[1],
-        id: crypto.randomUUID(),
-        timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
-        rating: null,
-      };
-      setMessages((prev) => [...prev, aiMsg]);
-      setIsTyping(false);
-      setActiveStepCount(0);
-    }, (placeholderSteps.length + 1) * 500);
+    // setTimeout(() => {
+    //   const aiMsg: ChatMessage = {
+    //     ...mockConversation[1],
+    //     id: generateUniqueId(),
+    //     timestamp: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+    //     rating: null,
+    //   };
+    //   setMessages((prev) => [...prev, aiMsg]);
+    //   setIsTyping(false);
+    //   setActiveStepCount(0);
+    // }, (placeholderSteps.length + 1) * 500);
   }, [input, isTyping]);
 
   const reset = useCallback(() => {
