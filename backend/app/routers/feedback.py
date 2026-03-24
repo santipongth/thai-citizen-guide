@@ -8,7 +8,9 @@ Endpoint
 
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from app.auth.dependencies import require_admin, get_current_user
+from app.models.user import User
 from tortoise.functions import Count
 
 from app.models.conversation import Conversation, Message
@@ -18,7 +20,10 @@ router = APIRouter(prefix="/feedback", tags=["Feedback"])
 
 
 @router.get("/stats", response_model=FeedbackStats, summary="Get feedback and satisfaction metrics")
-async def feedback_stats() -> FeedbackStats:
+async def feedback_stats(user: User = Depends(get_current_user)) -> FeedbackStats:
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="ไม่สามารถเข้าถึงข้อมูลนี้ได้")
+        
     # All rated messages, newest first
     rated_messages = await (
         Message.filter(rating__not_isnull=True)

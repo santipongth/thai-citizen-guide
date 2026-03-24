@@ -12,7 +12,9 @@ Endpoints
 import time
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status, Depends
+from app.auth.dependencies import require_admin, get_current_user
+from app.models.user import User
 from tortoise.exceptions import DoesNotExist
 
 from app.models.conversation import Conversation, Message
@@ -35,7 +37,7 @@ router = APIRouter(prefix="/conversations", tags=["Conversations"])
     summary="Save conversation with messages",
     status_code=status.HTTP_201_CREATED,
 )
-async def save_conversation(body: SaveConversationRequest) -> dict:
+async def save_conversation(body: SaveConversationRequest, user: User = Depends(get_current_user)) -> dict:
     # Create conversation record
     conv = await Conversation.create(
         title=body.title or "สนทนาใหม่",
@@ -44,6 +46,7 @@ async def save_conversation(body: SaveConversationRequest) -> dict:
         status=body.status,
         message_count=len(body.messages),
         response_time=body.response_time,
+        user_id=user.id,
     )
 
     # Bulk-insert messages
@@ -60,6 +63,7 @@ async def save_conversation(body: SaveConversationRequest) -> dict:
                     sources=m.sources or [],
                     rating=m.rating,
                     feedback_text=m.feedback_text,
+                    user_id=user.id,
                 )
             )
         await Message.bulk_create(msg_rows, ignore_conflicts=True)
@@ -75,10 +79,14 @@ async def save_conversation(body: SaveConversationRequest) -> dict:
 async def list_conversations(
     search: str = Query("", description="Search in title or preview"),
     filter_agency: str = Query("", alias="filterAgency", description="Filter by agency name"),
+    user: User = Depends(get_current_user),
 ) -> HistoryResponse:
     start = time.time()
 
     qs = Conversation.all()
+
+    if not user.is_admin:
+        qs = qs.filter(user_id=user.id)
 
     if search:
         qs = qs.filter(title__icontains=search)
@@ -116,11 +124,14 @@ async def list_conversations(
 # ---------------------------------------------------------------------------
 
 @router.get("/{conversation_id}", summary="Get conversation with messages")
-async def get_conversation(conversation_id: uuid.UUID) -> dict:
+async def get_conversation(conversation_id: uuid.UUID, user: User = Depends(get_current_user)) -> dict:
     try:
         conv = await Conversation.get(id=conversation_id)
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Conversation not found")
+
+    if conv.user_id != user.id and not user.is_admin:
+        raise HTTPException(status_code=403, detail="ไม่สามารถเข้าถึงสนทนานี้ได้")
 
     messages = await Message.filter(conversation_id=conversation_id).order_by("created_at")
 
@@ -149,11 +160,14 @@ async def get_conversation(conversation_id: uuid.UUID) -> dict:
     }
 
 @router.get("/{conversation_id}/messages", summary="Get messages for a conversation")
-async def get_conversation_messages(conversation_id: uuid.UUID) -> list[dict]:
+async def get_conversation_messages(conversation_id: uuid.UUID, user: User = Depends(get_current_user)) -> list[dict]:
     try:
         conv = await Conversation.get(id=conversation_id)
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Conversation not found")
+
+    if conv.user_id != user.id and not user.is_admin:
+        raise HTTPException(status_code=403, detail="ไม่สามารถเข้าถึงสนทนานี้ได้")
 
     messages = await Message.filter(conversation_id=conversation_id).order_by("created_at")
 
@@ -177,9 +191,11 @@ async def get_conversation_messages(conversation_id: uuid.UUID) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 @router.delete("/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete conversation")
-async def delete_conversation(conversation_id: uuid.UUID) -> None:
+async def delete_conversation(conversation_id: uuid.UUID, user: User = Depends(get_current_user)) -> None:
     try:
         conv = await Conversation.get(id=conversation_id)
     except DoesNotExist:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    if conv.user_id != user.id and not user.is_admin:
+        raise HTTPException(status_code=403, detail="ไม่สามารถลบสนทนานี้ได้")
     await conv.delete()

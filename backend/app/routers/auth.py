@@ -16,7 +16,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Depends
+from app.auth.dependencies import require_admin
+from app.models.user import User
 from pydantic import BaseModel, EmailStr
 
 from app.auth.dependencies import get_current_user

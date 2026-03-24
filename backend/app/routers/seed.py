@@ -8,7 +8,8 @@ Endpoints
   POST  /seed/all        Run both seeders above in one call
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from app.auth.dependencies import require_admin
 
 from app.auth.security import hash_password
 from app.models.agency import Agency
@@ -117,19 +118,19 @@ async def _run_seed_agencies() -> dict:
 # ---------------------------------------------------------------------------
 
 @router.post("/admin", summary="Seed default admin account")
-async def seed_admin() -> dict:
+async def seed_admin(_: User = Depends(require_admin)) -> dict:
     result = await _run_seed_admin()
     return result
 
 
 @router.post("/agencies", summary="Seed default government agencies")
-async def seed_agencies() -> dict:
+async def seed_agencies(_: User = Depends(require_admin)) -> dict:
     result = await _run_seed_agencies()
     return result
 
 
 @router.post("/all", summary="Seed all default data (admin + agencies)")
-async def seed_all() -> dict:
+async def seed_all(_: User = Depends(require_admin)) -> dict:
     admin_result = await _run_seed_admin()
     agencies_result = await _run_seed_agencies()
     return {

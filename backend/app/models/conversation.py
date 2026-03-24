@@ -20,6 +20,13 @@ class Conversation(Model):
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
+    user = fields.ForeignKeyField(
+        "models.User",
+        related_name="conversations",
+        on_delete=fields.SET_NULL,
+        null=True,
+    )
+
     class Meta:
         table = "conversations"
         ordering = ["-created_at"]
@@ -47,6 +54,13 @@ class Message(Model):
     feedback_text = fields.TextField(null=True)
 
     created_at = fields.DatetimeField(auto_now_add=True)
+    
+    user = fields.ForeignKeyField(
+        "models.User",
+        related_name="messages",
+        on_delete=fields.SET_NULL,
+        null=True,
+    )
 
     class Meta:
         table = "messages"

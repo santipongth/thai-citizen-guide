@@ -30,3 +30,8 @@ class User(Model):
 
     def __str__(self) -> str:
         return self.email
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == "admin"
+

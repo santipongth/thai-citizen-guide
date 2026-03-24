@@ -21,7 +21,9 @@ import uuid
 from typing import Any, Literal
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status, Depends
+from app.auth.dependencies import require_admin
+from app.models.user import User
 from pydantic import BaseModel, ConfigDict
 from tortoise.exceptions import DoesNotExist
 
@@ -88,7 +90,7 @@ async def get_agency(agency_id: uuid.UUID):
 # ---------------------------------------------------------------------------
 
 @router.post("", response_model=AgencyResponse, status_code=status.HTTP_201_CREATED, summary="Create agency")
-async def create_agency(body: AgencyCreate):
+async def create_agency(body: AgencyCreate, _: User = Depends(require_admin)):
     data = body.model_dump()
 
     # Serialise nested Pydantic objects to plain dicts for JSON fields
@@ -104,7 +106,7 @@ async def create_agency(body: AgencyCreate):
 # ---------------------------------------------------------------------------
 
 @router.put("/{agency_id}", response_model=AgencyResponse, summary="Replace agency")
-async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate):
+async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate, _: User = Depends(require_admin)):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
@@ -123,7 +125,7 @@ async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate):
 # ---------------------------------------------------------------------------
 
 @router.patch("/{agency_id}", response_model=AgencyResponse, summary="Partial update agency")
-async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate):
+async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, _: User = Depends(require_admin)):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
@@ -152,7 +154,7 @@ async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate):
 # ---------------------------------------------------------------------------
 
 @router.delete("/{agency_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete agency")
-async def delete_agency(agency_id: uuid.UUID):
+async def delete_agency(agency_id: uuid.UUID, _: User = Depends(require_admin)):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
@@ -202,7 +204,7 @@ class ConnectionLogResponse(BaseModel):
     response_model=list[ConnectionLogResponse],
     summary="List connection logs for an agency",
 )
-async def list_connection_logs(agency_id: uuid.UUID, limit: int = Query(50, le=200)):
+async def list_connection_logs(agency_id: uuid.UUID, limit: int = Query(50, le=200), _: User = Depends(require_admin)):
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:
@@ -272,7 +274,7 @@ class TestConnectionResponse(BaseModel):
     response_model=TestConnectionResponse,
     summary="Test agency connection and record a connection log",
 )
-async def test_connection(agency_id: uuid.UUID):
+async def test_connection(agency_id: uuid.UUID, _: User = Depends(require_admin)) -> TestConnectionResponse:
     try:
         agency = await Agency.get(id=agency_id)
     except DoesNotExist:

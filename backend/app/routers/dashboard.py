@@ -9,13 +9,18 @@ Endpoint
 import random
 import time
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from app.auth.dependencies import require_admin, get_current_user
+from app.models.user import User
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 
 @router.get("/stats", summary="Get dashboard statistics and charts data")
-async def dashboard_stats() -> dict:
+async def dashboard_stats(user: User = Depends(get_current_user)) -> dict:
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="ไม่สามารถเข้าถึงข้อมูลนี้ได้")
+    
     start = time.time()
 
     stats = {
