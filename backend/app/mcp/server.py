@@ -44,16 +44,19 @@ async def list_agency_resource() -> str:
     """
     Return a JSON array of all *active* government agencies.
     """
-    return await _fetch_agencies()
+    return json.dumps(await _fetch_agencies(), default=_serialize, ensure_ascii=False, indent=2)
 
 @mcp.tool("list_agency", description="Return a JSON array of all active government agencies.")
-async def list_agency_tool() -> str:
+async def list_agency_tool() -> dict:
     """
     Tool wrapper for list_agency_resource, which returns a JSON string.
     """
-    return await _fetch_agencies()
+    
+    agencies = await _fetch_agencies()
 
-async def _fetch_agencies() -> str:
+    return {"agencies": agencies, "total": len(agencies)}
+
+async def _fetch_agencies() -> dict:
     """
     Return a JSON array of all *active* government agencies.
 
@@ -83,9 +86,11 @@ async def _fetch_agencies() -> str:
     #         "query": { "type": "string", "description": "User's natural language query" },
     #     }
 
-    return json.dumps(
-        {"agencies": agencies, "total": len(agencies)},
-        default=_serialize,
-        ensure_ascii=False,
-        indent=2,
-    )
+    return agencies
+
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request: Request) -> JSONResponse:
+    return JSONResponse({"status": "healthy", "service": "mcp-server"})
