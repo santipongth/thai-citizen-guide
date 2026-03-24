@@ -13,11 +13,6 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
-    # LLM (AI Gateway — Gemini via Lovable or OpenAI-compatible endpoint)
-    LLM_API_KEY: str = ""
-    LLM_API_URL: str = "https://ai.gateway.lovable.dev/v1/chat/completions"
-    LLM_MODEL: str = "google/gemini-3-flash-preview"
-
     # JWT authentication
     JWT_SECRET: str = "change-me-in-production-use-a-long-random-string"
     JWT_ALGORITHM: str = "HS256"

@@ -32,9 +32,6 @@ services:
       JWT_SECRET:          ${JWT_SECRET:-change-me-in-production-use-a-long-random-string}
       JWT_ALGORITHM:       HS256
       JWT_EXPIRE_MINUTES:  ${JWT_EXPIRE_MINUTES:-10080}
-      LLM_API_KEY:         ${LLM_API_KEY:-}
-      LLM_API_URL:         ${LLM_API_URL:-https://ai.gateway.lovable.dev/v1/chat/completions}
-      LLM_MODEL:           ${LLM_MODEL:-google/gemini-3-flash-preview}
       DEBUG:               ${DEBUG:-false}
     depends_on:
       postgres:

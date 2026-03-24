@@ -25,9 +25,9 @@ mcp = FastMCP(
         "This server exposes Thai government agency data for the AI Chatbot Portal.\n\n"
         "Available tool:\n"
         "- list_agency: Returns a JSON object with an `agencies` array and `total` count. "
-        "Each agency contains: id, name, short_name, logo, description, connection_type "
-        "(MCP | API | A2A), status (active | inactive), data_scope (list of data categories), "
-        "endpoint_url, total_calls, color, created_at, updated_at.\n\n"
+        "Each agency contains: id, name, description, connection_type "
+        "(MCP | API | A2A), data_scope (list of data categories), "
+        "endpoint_url, expected_payload.\n\n"
         "Always call list_agency before answering questions about available agencies. "
         "Never fabricate agency data."
     ),
@@ -43,16 +43,6 @@ def _serialize(value):
 async def list_agency_resource() -> str:
     """
     Return a JSON array of all *active* government agencies.
-
-    Each item contains:
-    - id, name, short_name, logo
-    - connection_type  (MCP | API | A2A)
-    - status           (active | inactive)
-    - data_scope       list of data categories this agency covers
-    - endpoint_url     base URL of the agency's API
-    - total_calls      lifetime call counter
-    - color            UI accent colour (hex or Tailwind class)
-    - created_at / updated_at
     """
     return await _fetch_agencies()
 
@@ -68,31 +58,30 @@ async def _fetch_agencies() -> str:
     Return a JSON array of all *active* government agencies.
 
     Each item contains:
-    - id, name, short_name, logo
+    - id
+    - name
+    - description
     - connection_type  (MCP | API | A2A)
-    - status           (active | inactive)
     - data_scope       list of data categories this agency covers
     - endpoint_url     base URL of the agency's API
-    - total_calls      lifetime call counter
-    - color            UI accent colour (hex or Tailwind class)
-    - created_at / updated_at
+    - expected_payload example JSON payload for API calls
     """
     
     agencies = await Agency.filter(status="active").values(
         "id",
         "name",
-        "short_name",
-        "logo",
         "description",
         "connection_type",
-        "status",
         "data_scope",
         "endpoint_url",
-        "total_calls",
-        "color",
-        "created_at",
-        "updated_at",
+        "expected_payload",
     )
+
+    # for agency in agencies:
+    #     agency["expected_payload"] = {
+    #         "session_id": { "type": "string", "description": "Unique identifier for the chat session" },
+    #         "query": { "type": "string", "description": "User's natural language query" },
+    #     }
 
     return json.dumps(
         {"agencies": agencies, "total": len(agencies)},

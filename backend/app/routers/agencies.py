@@ -647,104 +647,104 @@ async def _test_a2a(agency: Agency) -> dict[str, Any]:
 # Parse API spec (LLM-assisted)
 # ---------------------------------------------------------------------------
 
-class ParseSpecRequest(BaseModel):
-    spec_text: str
+# class ParseSpecRequest(BaseModel):
+#     spec_text: str
 
 
-@router.post("/parse-spec", summary="Parse an OpenAPI spec via LLM and extract structured metadata")
-async def parse_api_spec(body: ParseSpecRequest):
-    if not body.spec_text.strip():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="spec_text is required")
+# @router.post("/parse-spec", summary="Parse an OpenAPI spec via LLM and extract structured metadata")
+# async def parse_api_spec(body: ParseSpecRequest):
+#     if not body.spec_text.strip():
+#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="spec_text is required")
 
-    if not settings.LLM_API_KEY:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="LLM API key not configured")
+#     if not settings.LLM_API_KEY:
+#         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="LLM API key not configured")
 
-    payload = {
-        "model": settings.LLM_MODEL,
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are an API specification parser. Extract structured information from OpenAPI/Swagger specs including response schemas.",
-            },
-            {
-                "role": "user",
-                "content": f"Parse this API specification and extract the details including response field schemas:\n\n{body.spec_text[:30000]}",
-            },
-        ],
-        "tools": [
-            {
-                "type": "function",
-                "function": {
-                    "name": "extract_api_spec",
-                    "description": "Extract structured API specification details including response schemas",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "auth_method": {"type": "string", "enum": ["api_key", "oauth2", "basic_auth", "none"]},
-                            "auth_header": {"type": "string"},
-                            "base_path": {"type": "string"},
-                            "rate_limit_rpm": {"type": "integer"},
-                            "request_format": {"type": "string", "enum": ["json", "xml"]},
-                            "endpoints": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "method": {"type": "string", "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"]},
-                                        "path": {"type": "string"},
-                                        "description": {"type": "string"},
-                                    },
-                                    "required": ["method", "path", "description"],
-                                    "additionalProperties": False,
-                                },
-                            },
-                            "response_schema": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "field": {"type": "string"},
-                                        "type": {"type": "string"},
-                                        "description": {"type": "string"},
-                                        "example": {"type": "string"},
-                                    },
-                                    "required": ["field", "type", "description"],
-                                    "additionalProperties": False,
-                                },
-                            },
-                        },
-                        "required": ["auth_method", "auth_header", "base_path", "request_format", "endpoints", "response_schema"],
-                        "additionalProperties": False,
-                    },
-                },
-            }
-        ],
-        "tool_choice": {"type": "function", "function": {"name": "extract_api_spec"}},
-    }
+#     payload = {
+#         "model": settings.LLM_MODEL,
+#         "messages": [
+#             {
+#                 "role": "system",
+#                 "content": "You are an API specification parser. Extract structured information from OpenAPI/Swagger specs including response schemas.",
+#             },
+#             {
+#                 "role": "user",
+#                 "content": f"Parse this API specification and extract the details including response field schemas:\n\n{body.spec_text[:30000]}",
+#             },
+#         ],
+#         "tools": [
+#             {
+#                 "type": "function",
+#                 "function": {
+#                     "name": "extract_api_spec",
+#                     "description": "Extract structured API specification details including response schemas",
+#                     "parameters": {
+#                         "type": "object",
+#                         "properties": {
+#                             "auth_method": {"type": "string", "enum": ["api_key", "oauth2", "basic_auth", "none"]},
+#                             "auth_header": {"type": "string"},
+#                             "base_path": {"type": "string"},
+#                             "rate_limit_rpm": {"type": "integer"},
+#                             "request_format": {"type": "string", "enum": ["json", "xml"]},
+#                             "endpoints": {
+#                                 "type": "array",
+#                                 "items": {
+#                                     "type": "object",
+#                                     "properties": {
+#                                         "method": {"type": "string", "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"]},
+#                                         "path": {"type": "string"},
+#                                         "description": {"type": "string"},
+#                                     },
+#                                     "required": ["method", "path", "description"],
+#                                     "additionalProperties": False,
+#                                 },
+#                             },
+#                             "response_schema": {
+#                                 "type": "array",
+#                                 "items": {
+#                                     "type": "object",
+#                                     "properties": {
+#                                         "field": {"type": "string"},
+#                                         "type": {"type": "string"},
+#                                         "description": {"type": "string"},
+#                                         "example": {"type": "string"},
+#                                     },
+#                                     "required": ["field", "type", "description"],
+#                                     "additionalProperties": False,
+#                                 },
+#                             },
+#                         },
+#                         "required": ["auth_method", "auth_header", "base_path", "request_format", "endpoints", "response_schema"],
+#                         "additionalProperties": False,
+#                     },
+#                 },
+#             }
+#         ],
+#         "tool_choice": {"type": "function", "function": {"name": "extract_api_spec"}},
+#     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            resp = await client.post(
-                settings.LLM_API_URL,
-                headers={"Authorization": f"Bearer {settings.LLM_API_KEY}", "Content-Type": "application/json"},
-                json=payload,
-            )
-        except httpx.RequestError as exc:
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"LLM gateway error: {exc}")
+#     async with httpx.AsyncClient(timeout=30.0) as client:
+#         try:
+#             resp = await client.post(
+#                 settings.LLM_API_URL,
+#                 headers={"Authorization": f"Bearer {settings.LLM_API_KEY}", "Content-Type": "application/json"},
+#                 json=payload,
+#             )
+#         except httpx.RequestError as exc:
+#             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"LLM gateway error: {exc}")
 
-    if resp.status_code == 429:
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded, please try again later")
-    if resp.status_code == 402:
-        raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail="Payment required")
-    if not resp.is_success:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="LLM gateway error")
+#     if resp.status_code == 429:
+#         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded, please try again later")
+#     if resp.status_code == 402:
+#         raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail="Payment required")
+#     if not resp.is_success:
+#         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="LLM gateway error")
 
-    data = resp.json()
-    tool_call = (data.get("choices") or [{}])[0].get("message", {}).get("tool_calls", [{}])[0]
-    args_raw = tool_call.get("function", {}).get("arguments")
+#     data = resp.json()
+#     tool_call = (data.get("choices") or [{}])[0].get("message", {}).get("tool_calls", [{}])[0]
+#     args_raw = tool_call.get("function", {}).get("arguments")
 
-    if not args_raw:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to parse specification")
+#     if not args_raw:
+#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to parse specification")
 
-    parsed = _json.loads(args_raw)
-    return {"success": True, "data": parsed}
+#     parsed = _json.loads(args_raw)
+#     return {"success": True, "data": parsed}
