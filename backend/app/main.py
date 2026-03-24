@@ -28,7 +28,7 @@ from app.mcp.server import mcp
 from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
 
-mcp_app = mcp.http_app(path="/")
+mcp_app = mcp.http_app(path="/", stateless_http=True)
 
 # ---------------------------------------------------------------------------
 # SSE transport — GET /sse + POST /messages/

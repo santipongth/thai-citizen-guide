@@ -7,7 +7,7 @@ async def init_db() -> None:
 
     async with Command(tortoise_config=TORTOISE_ORM) as command:
         await command.upgrade()
-        print(command.heads())
+        # print((await command.history())[-1])
 
     await Tortoise.init(config=TORTOISE_ORM)
     await Tortoise.generate_schemas(safe=True)
