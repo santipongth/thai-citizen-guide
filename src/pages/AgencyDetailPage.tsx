@@ -421,6 +421,14 @@ export default function AgencyDetailPage() {
                     <p className="text-sm font-mono text-foreground">{agency.apiKeyName}</p>
                   </div>
                 )}
+                {agency.expectedPayload && (
+                  <div className="md:col-span-2">
+                    <p className="text-xs text-muted-foreground mb-1.5">Expected Payload</p>
+                    <pre className="text-xs font-mono bg-muted rounded-md p-3 overflow-x-auto border border-border whitespace-pre-wrap break-all">
+                      {JSON.stringify(agency.expectedPayload, null, 2)}
+                    </pre>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

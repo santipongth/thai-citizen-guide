@@ -45,6 +45,8 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
   const [requestFormat, setRequestFormat] = useState("json");
   const [apiEndpoints, setApiEndpoints] = useState<ApiEndpoint[]>([]);
   const [responseSchema, setResponseSchema] = useState<ResponseField[]>([]);
+  const [expectedPayload, setExpectedPayload] = useState<string>("");
+  const [expectedPayloadError, setExpectedPayloadError] = useState(false);
   const [parsing, setParsing] = useState(false);
 
   useEffect(() => {
@@ -65,13 +67,15 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
       setRequestFormat(agency.requestFormat || "json");
       setApiEndpoints(agency.apiEndpoints || []);
       setResponseSchema(agency.responseSchema || []);
+      setExpectedPayload(agency.expectedPayload ? JSON.stringify(agency.expectedPayload, null, 2) : "");
+      setExpectedPayloadError(false);
     } else {
       setName(""); setShortName(""); setLogo("🏢"); setDescription("");
       setConnectionType("API"); setEndpointUrl(""); setColor("hsl(213 70% 45%)");
       setDataScope([]); setStatus("active");
       setAuthMethod("api_key"); setAuthHeader(""); setBasePath("");
       setRateLimitRpm(""); setRequestFormat("json"); setApiEndpoints([]);
-      setResponseSchema([]);
+      setResponseSchema([]); setExpectedPayload(""); setExpectedPayloadError(false);
     }
   }, [agency, open]);
 
@@ -128,6 +132,18 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !shortName) return;
+
+    let parsedPayload: Record<string, unknown> | null = null;
+    if (expectedPayload.trim()) {
+      try {
+        parsedPayload = JSON.parse(expectedPayload);
+        setExpectedPayloadError(false);
+      } catch {
+        setExpectedPayloadError(true);
+        return;
+      }
+    }
+
     onSave({
       name, shortName, logo, description, connectionType, endpointUrl, color, dataScope, status,
       ...(connectionType === "API" ? {
@@ -138,6 +154,7 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
         requestFormat,
         apiEndpoints: apiEndpoints.filter(ep => ep.path),
         responseSchema: responseSchema.filter(f => f.field),
+        expectedPayload: parsedPayload,
       } : {}),
     });
   };
@@ -315,6 +332,22 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
                 {responseSchema.length === 0 && (
                   <p className="text-[11px] text-muted-foreground text-center py-2">ยังไม่มี schema — กดเพิ่ม หรือ Upload API Spec เพื่อสร้างอัตโนมัติ</p>
                 )}
+              </div>
+
+              {/* Expected Payload */}
+              <div className="space-y-1.5">
+                <Label className="text-xs">Expected Payload (JSON)</Label>
+                <Textarea
+                  value={expectedPayload}
+                  onChange={(e) => { setExpectedPayload(e.target.value); setExpectedPayloadError(false); }}
+                  placeholder={'{\n  "query": "string",\n  "limit": 10\n}'}
+                  rows={5}
+                  className={`font-mono text-xs resize-y ${expectedPayloadError ? "border-destructive" : ""}`}
+                />
+                {expectedPayloadError && (
+                  <p className="text-[11px] text-destructive">JSON ไม่ถูกต้อง</p>
+                )}
+                <p className="text-[11px] text-muted-foreground">โครงสร้าง request body ที่ LLM ควรส่งให้ API นี้</p>
               </div>
             </div>
           )}
