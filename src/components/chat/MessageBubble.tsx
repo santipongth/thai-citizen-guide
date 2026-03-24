@@ -6,6 +6,7 @@ import type { ChatMessage } from "@/data/mockData";
 import { AgentStepDisplay } from "./AgentStepDisplay";
 import { FeedbackDialog } from "./FeedbackDialog";
 import ReactMarkdown from "react-markdown";
+import { AppLogo } from "../ui/AppLogo";
 
 export function MessageBubble({ message, onRate }: { message: ChatMessage; onRate?: (id: string, rating: 'up' | 'down', feedbackText?: string) => void }) {
   const [showFeedback, setShowFeedback] = useState(false);
@@ -21,12 +22,15 @@ export function MessageBubble({ message, onRate }: { message: ChatMessage; onRat
 
   return (
     <div className={cn("flex gap-3 mb-4", isUser && "flex-row-reverse")}>
-      <div className={cn(
+      {/* <div className={cn(
         "w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm",
         isUser ? "bg-primary text-primary-foreground" : "gov-gradient text-white"
       )}>
         {isUser ? '👤' : 'AI'}
-      </div>
+      </div> */}
+      {isUser
+        ? <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm bg-primary text-primary-foreground">👤</div>
+        : <AppLogo className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm shrink-0" />}
       <div className={cn("max-w-[75%] space-y-2", isUser && "text-right")}>
         <div className={cn(
           "rounded-2xl px-4 py-3 text-sm leading-relaxed",
