@@ -2,8 +2,6 @@ name: Deploy on Commit Message
 
 on:
   push:
-    branches:
-      - hello
 
 jobs:
   check-deploy:
