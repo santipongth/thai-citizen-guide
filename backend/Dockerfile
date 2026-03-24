@@ -27,7 +27,7 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 
 # Copy application source
-COPY app/ ./app/
+COPY . .
 
 # Put the venv on PATH so plain `python` / `uvicorn` work without `uv run`
 ENV PATH="/app/.venv/bin:$PATH" \
