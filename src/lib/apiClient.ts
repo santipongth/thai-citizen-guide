@@ -33,8 +33,7 @@ export const tokenStorage = {
 // Axios instance
 // ---------------------------------------------------------------------------
 
-const BASE_URL =
-  (import.meta.env.API_BASE_URL as string | undefined) ?? 'http://localhost:8000';
+const BASE_URL = (import.meta.env.API_BASE_URL as string | undefined) ?? '';
 
 const axiosInstance: AxiosInstance = axios.create({
   baseURL: BASE_URL,
