@@ -29,6 +29,10 @@ services:
       JWT_ALGORITHM:       HS256
       JWT_EXPIRE_MINUTES:  ${JWT_EXPIRE_MINUTES:-10080}
       DEBUG:               ${DEBUG:-false}
+      PARSE_SPEC_URL:      ${PARSE_SPEC_URL:-http://thaillm.or.th/api/openthaigpt/v1/chat/completions}
+      PARSE_SPEC_API_KEY:  ${PARSE_SPEC_API_KEY:-}
+      PARSE_SPEC_TIMEOUT:  ${PARSE_SPEC_TIMEOUT:-60}
+      PARSE_SPEC_LLM_MODEL: ${PARSE_SPEC_LLM_MODEL:-/model}
     depends_on:
       postgres:
         condition: service_healthy

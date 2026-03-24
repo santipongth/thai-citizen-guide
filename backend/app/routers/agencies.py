@@ -488,41 +488,16 @@ async def _test_mcp(agency: Agency) -> dict[str, Any]:
 
 
 async def _test_a2a(agency: Agency) -> dict[str, Any]:
-    """
-    Two-phase A2A health check per the A2A specification:
-
-    Phase 1 — Agent Card discovery
-      GET {base}/.well-known/agent.json
-      Validates required fields: name, description, url
-
-    Phase 2 — RPC endpoint liveness
-      POST {card.url}  with a JSON-RPC 2.0  tasks/get  probe.
-      Any well-formed JSON-RPC response (including TaskNotFound error)
-      confirms the agent process is alive and handling requests.
-
-    Phase 3 (conditional) — /chat ping probe
-      If the endpoint URL ends with /chat, POST {"query": "ping"} and
-      verify the response body contains "pong" (case-insensitive).
-      Skipped automatically if the URL does not end with /chat.
-
-    A2A spec: https://google.github.io/A2A/specification/
-    """
     steps: list[dict] = []
     total_start = time.monotonic()
 
     if not agency.endpoint_url:
         return {"success": False, "protocol": "A2A", "version": "-", "steps": [], "latency": "0ms", "error": "Endpoint URL is required"}
 
-
-    base = agency.endpoint_url.rstrip("/")
-    agent_card_url = f"{base}/.well-known/agent.json"
-
-    card_headers = {"Accept": "application/json", "User-Agent": "AI-Chatbot-Portal/1.0 A2AProbe"}
     rpc_headers  = {"Content-Type": "application/json", "Accept": "application/json", "User-Agent": "AI-Chatbot-Portal/1.0 A2AProbe"}
 
     try:
         async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-
             # ── Phase 1: TCP Connection ──────────────────────────────────────────
             s1 = time.monotonic()
             await client.get(agency.endpoint_url)
@@ -537,92 +512,11 @@ async def _test_a2a(agency: Agency) -> dict[str, Any]:
                 steps.append({"step": 2, "label": f"Chat Query", "status": "done", "time": s2_ms})
             except Exception as chat_exc:
                 s2_ms = int((time.monotonic() - s2) * 1000)
-                steps.append({"step": 2, "label": f"Chat failed — {chat_exc}", "status": "error", "time": s2_ms})
-
-            # s2 = time.monotonic()
-            # card_resp = await client.get(agent_card_url, headers=card_headers)
-            # s2_ms = int((time.monotonic() - s2) * 1000)
-
-            # if card_resp.status_code == 404:
-            #     steps.append({"step": 2, "label": "Agent Card — 404 Not Found", "status": "error", "time": s2_ms})
-            #     total_ms = int((time.monotonic() - total_start) * 1000)
-            #     return {"success": False, "protocol": "A2A", "version": "-", "steps": steps, "latency": f"{total_ms}ms",
-            #             "error": f"Agent Card not found at {agent_card_url}"}
-
-            # if card_resp.status_code >= 400:
-            #     steps.append({"step": 2, "label": f"Agent Card — HTTP {card_resp.status_code}", "status": "error", "time": s2_ms})
-            #     total_ms = int((time.monotonic() - total_start) * 1000)
-            #     return {"success": False, "protocol": "A2A", "version": "-", "steps": steps, "latency": f"{total_ms}ms",
-            #             "error": f"HTTP {card_resp.status_code}"}
-
-            # steps.append({"step": 2, "label": "Agent Card Retrieved", "status": "done", "time": s2_ms})
-
-            # # Parse and validate card
-            # try:
-            #     card = card_resp.json()
-            # except Exception:
-            #     card = {}
-
-            # agent_name    = card.get("name", "Unknown Agent")
-            # agent_version = card.get("version", "unknown")
-            # skills        = [sk.get("id") or sk.get("name", "?") for sk in card.get("skills", [])] if isinstance(card.get("skills"), list) else []
-            # capabilities  = card.get("capabilities", {})
-            # rpc_url       = card.get("url", base)   # fallback to base if url missing
-
-            # required = {"name", "description", "url"}
-            # missing  = required - set(card.keys())
-            # s3_ms = int((time.monotonic() - s1) * 1000)
-            # steps.append({
-            #     "step": 3,
-            #     "label": f"Agent Card valid — {agent_name}" if not missing else f"Missing fields: {', '.join(sorted(missing))}",
-            #     "status": "error" if missing else "done",
-            #     "time": s3_ms,
-            # })
-
-            # if missing:
-            #     total_ms = int((time.monotonic() - total_start) * 1000)
-            #     return {"success": False, "protocol": "A2A", "version": agent_version, "steps": steps, "latency": f"{total_ms}ms",
-            #             "error": f"Invalid Agent Card — missing: {', '.join(sorted(missing))}",
-            #             "agentCard": {"name": agent_name, "skills": skills, "capabilities": capabilities}}
-
-            # # ── Phase 2: RPC endpoint liveness probe ─────────────────────────
-            # # Send tasks/get with a probe ID.  A conformant A2A server returns
-            # # either a result or a JSON-RPC error — both prove it's alive.
-            # probe_payload = {
-            #     "jsonrpc": "2.0",
-            #     "id": 1,
-            #     "method": "tasks/get",
-            #     "params": {"id": "health-check-probe"},
-            # }
-            # s4 = time.monotonic()
-            # rpc_resp = await client.post(rpc_url, json=probe_payload, headers=rpc_headers)
-            # s4_ms = int((time.monotonic() - s4) * 1000)
-
-            # try:
-            #     rpc_body = rpc_resp.json()
-            #     is_jsonrpc = "jsonrpc" in rpc_body
-            # except Exception:
-            #     rpc_body    = {}
-            #     is_jsonrpc  = False
-
-            # if not is_jsonrpc:
-            #     steps.append({"step": 4, "label": f"RPC Probe — unexpected response (HTTP {rpc_resp.status_code})", "status": "error", "time": s4_ms})
-            #     total_ms = int((time.monotonic() - total_start) * 1000)
-            #     return {"success": False, "protocol": "A2A", "version": agent_version, "steps": steps, "latency": f"{total_ms}ms",
-            #             "error": "RPC endpoint did not return a JSON-RPC response",
-            #             "agentCard": {"name": agent_name, "skills": skills, "capabilities": capabilities}}
-
-            # # Both result and error are valid — they prove the agent is live
-            # rpc_ok    = "result" in rpc_body or "error" in rpc_body
-            # rpc_label = "RPC Endpoint Live" if rpc_ok else "RPC — unexpected body"
-            # steps.append({"step": 4, "label": rpc_label, "status": "done" if rpc_ok else "error", "time": s4_ms})
-
-            
-
+                steps.append({"step": 2, "label": f"Chat failed — {chat_exc}", "status": "error", "time": s2_ms})          
     except httpx.TimeoutException:
         total_ms = int((time.monotonic() - total_start) * 1000)
         if not steps:
-            steps.append({"step": 1, "label": "DNS Resolution", "status": "error", "time": total_ms})
+            steps.append({"step": 1, "label": "TCP Connection", "status": "error", "time": total_ms})
         if len(steps) < 4:
             steps.append({"step": len(steps) + 1, "label": "Timeout", "status": "error", "time": 0})
         return {"success": False, "protocol": "A2A", "version": "-", "steps": steps,
@@ -630,7 +524,7 @@ async def _test_a2a(agency: Agency) -> dict[str, Any]:
     except Exception as exc:
         total_ms = int((time.monotonic() - total_start) * 1000)
         if not steps:
-            steps.append({"step": 1, "label": "DNS Resolution", "status": "error", "time": total_ms})
+            steps.append({"step": 1, "label": "TCP Connection", "status": "error", "time": total_ms})
         return {"success": False, "protocol": "A2A", "version": "-", "steps": steps,
                 "latency": f"{total_ms}ms", "error": str(exc)}
 
@@ -649,104 +543,162 @@ async def _test_a2a(agency: Agency) -> dict[str, Any]:
 # Parse API spec (LLM-assisted)
 # ---------------------------------------------------------------------------
 
-# class ParseSpecRequest(BaseModel):
-#     spec_text: str
+class ParseSpecRequest(BaseModel):
+    spec_text: str
 
 
-# @router.post("/parse-spec", summary="Parse an OpenAPI spec via LLM and extract structured metadata")
-# async def parse_api_spec(body: ParseSpecRequest):
-#     if not body.spec_text.strip():
-#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="spec_text is required")
+@router.post("/parse-spec", summary="Parse an OpenAPI spec via LLM and extract structured metadata")
+async def parse_api_spec(body: ParseSpecRequest):
+    if not body.spec_text.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="spec_text is required")
 
-#     if not settings.LLM_API_KEY:
-#         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="LLM API key not configured")
+    payload = {
+        "model": settings.PARSE_SPEC_LLM_MODEL,
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are an API specification parser. Extract structured information from OpenAPI/Swagger specs including response schemas.",
+            },
+            {
+                "role": "user",
+                "content": f"Parse this API specification and extract the details including response field schemas:\n\n{body.spec_text[:30000]}",
+            },
+        ],
+        "tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "extract_api_spec",
+                    "description": "Extract structured API specification details including response schemas",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "auth_method": {
+                                "type": "string",
+                                "enum": ["api_key", "oauth2", "basic_auth", "none"],
+                                "description": "Authentication method used by the API",
+                            },
+                            "auth_header": {
+                                "type": "string",
+                                "description": "Authentication header name, e.g. X-API-Key, Authorization",
+                            },
+                            "base_path": {
+                                "type": "string",
+                                "description": "Base path prefix for all endpoints, e.g. /api/v1",
+                            },
+                            "rate_limit_rpm": {
+                                "type": "integer",
+                                "description": "Rate limit in requests per minute if specified, null otherwise",
+                            },
+                            "request_format": {
+                                "type": "string",
+                                "enum": ["json", "xml"],
+                                "description": "Default request/response format",
+                            },
+                            "endpoints": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "method": {"type": "string", "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"]},
+                                        "path": {"type": "string"},
+                                        "description": {"type": "string"},
+                                    },
+                                    "required": ["method", "path", "description"],
+                                    "additionalProperties": False,
+                                },
+                            },
+                            "response_schema": {
+                                "type": "array",
+                                "description": "Common response fields found across endpoint responses",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "field": {"type": "string", "description": "Field name or dot-notation path e.g. data.items[].name"},
+                                        "type": {"type": "string", "description": "Data type: string, number, boolean, array, object, date"},
+                                        "description": {"type": "string", "description": "What this field contains"},
+                                        "example": {"type": "string", "description": "Example value"},
+                                    },
+                                    "required": ["field", "type", "description"],
+                                    "additionalProperties": False,
+                                },
+                            },
+                        },
+                        "required": ["auth_method", "auth_header", "base_path", "request_format", "endpoints", "response_schema"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+        ],
+        "tool_choice": {"type": "function", "function": {"name": "extract_api_spec"}},
+    }
 
-#     payload = {
-#         "model": settings.LLM_MODEL,
-#         "messages": [
-#             {
-#                 "role": "system",
-#                 "content": "You are an API specification parser. Extract structured information from OpenAPI/Swagger specs including response schemas.",
-#             },
-#             {
-#                 "role": "user",
-#                 "content": f"Parse this API specification and extract the details including response field schemas:\n\n{body.spec_text[:30000]}",
-#             },
-#         ],
-#         "tools": [
-#             {
-#                 "type": "function",
-#                 "function": {
-#                     "name": "extract_api_spec",
-#                     "description": "Extract structured API specification details including response schemas",
-#                     "parameters": {
-#                         "type": "object",
-#                         "properties": {
-#                             "auth_method": {"type": "string", "enum": ["api_key", "oauth2", "basic_auth", "none"]},
-#                             "auth_header": {"type": "string"},
-#                             "base_path": {"type": "string"},
-#                             "rate_limit_rpm": {"type": "integer"},
-#                             "request_format": {"type": "string", "enum": ["json", "xml"]},
-#                             "endpoints": {
-#                                 "type": "array",
-#                                 "items": {
-#                                     "type": "object",
-#                                     "properties": {
-#                                         "method": {"type": "string", "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"]},
-#                                         "path": {"type": "string"},
-#                                         "description": {"type": "string"},
-#                                     },
-#                                     "required": ["method", "path", "description"],
-#                                     "additionalProperties": False,
-#                                 },
-#                             },
-#                             "response_schema": {
-#                                 "type": "array",
-#                                 "items": {
-#                                     "type": "object",
-#                                     "properties": {
-#                                         "field": {"type": "string"},
-#                                         "type": {"type": "string"},
-#                                         "description": {"type": "string"},
-#                                         "example": {"type": "string"},
-#                                     },
-#                                     "required": ["field", "type", "description"],
-#                                     "additionalProperties": False,
-#                                 },
-#                             },
-#                         },
-#                         "required": ["auth_method", "auth_header", "base_path", "request_format", "endpoints", "response_schema"],
-#                         "additionalProperties": False,
-#                     },
-#                 },
-#             }
-#         ],
-#         "tool_choice": {"type": "function", "function": {"name": "extract_api_spec"}},
-#     }
+    async with httpx.AsyncClient(timeout=settings.PARSE_SPEC_TIMEOUT) as client:
+        try:
+            resp = await client.post(settings.PARSE_SPEC_URL,
+                headers={"Content-Type": "application/json", "apikey": settings.PARSE_SPEC_API_KEY},
+                json=payload,
+            )
+        except httpx.RequestError as exc:                
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"gateway error: {exc}")
 
-#     async with httpx.AsyncClient(timeout=30.0) as client:
-#         try:
-#             resp = await client.post(
-#                 settings.LLM_API_URL,
-#                 headers={"Authorization": f"Bearer {settings.LLM_API_KEY}", "Content-Type": "application/json"},
-#                 json=payload,
-#             )
-#         except httpx.RequestError as exc:
-#             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"LLM gateway error: {exc}")
+    if not resp.is_success:
+        try:
+            data = resp.json()
+        except Exception:
+            data = {}
 
-#     if resp.status_code == 429:
-#         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded, please try again later")
-#     if resp.status_code == 402:
-#         raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail="Payment required")
-#     if not resp.is_success:
-#         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="LLM gateway error")
+        raise HTTPException(status_code=resp.status_code, detail=data.get('message', 'unknown error'))
 
-#     data = resp.json()
-#     tool_call = (data.get("choices") or [{}])[0].get("message", {}).get("tool_calls", [{}])[0]
-#     args_raw = tool_call.get("function", {}).get("arguments")
+    data = resp.json()
+    tool_call = (data.get("choices") or [{}])[0].get("message", {}).get("tool_calls", [{}])[0]
+    args_raw = tool_call.get("function", {}).get("arguments")
 
-#     if not args_raw:
-#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to parse specification")
+    if not args_raw:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to parse specification")
 
-#     parsed = _json.loads(args_raw)
-#     return {"success": True, "data": parsed}
+    parsed = _json.loads(args_raw)
+    return {"success": True, "data": parsed}
+
+
+
+
+
+
+
+
+    headers = {
+        "Authorization": f"Bearer {lovable_api_key}",
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://ai.gateway.lovable.dev/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=60.0 # Good practice to set a timeout for LLM API calls
+        )
+
+    if response.status_code != 200:
+        if response.status_code == 429:
+            return JSONResponse(status_code=429, content={"error": "Rate limit exceeded, please try again later."})
+        if response.status_code == 402:
+            return JSONResponse(status_code=402, content={"error": "Payment required."})
+        
+        print("AI gateway error:", response.status_code, response.text)
+        return JSONResponse(status_code=500, content={"error": "AI gateway error"})
+
+    data = response.json()
+    
+    # Safely extract tool call arguments
+    try:
+        tool_call = data["choices"][0]["message"]["tool_calls"][0]
+        arguments = tool_call["function"]["arguments"]
+        if not arguments:
+            raise ValueError("Empty arguments")
+    except (KeyError, IndexError, ValueError):
+        return JSONResponse(status_code=500, content={"error": "Failed to parse specification"})
+
+    parsed = json.loads(arguments)
+    return {"success": True, "data": parsed}
