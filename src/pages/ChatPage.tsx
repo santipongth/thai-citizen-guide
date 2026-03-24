@@ -32,9 +32,16 @@ export default function ChatPage() {
         {!hasMessages && !isTyping ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center px-4">
             <AppLogo className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold mb-4" />
-            <h2 className="text-xl font-semibold text-foreground mb-2">AI Chatbot Portal กลาง</h2>
+            {/* <h2 className="text-xl font-semibold text-foreground mb-2">AI Chatbot Portal กลาง</h2>
             <p className="text-sm text-muted-foreground mb-6 max-w-md">
               ระบบบูรณาการข้อมูลหน่วยงานภาครัฐ
+            </p> */}
+            <h1 className="text-3xl md:text-4xl font-bold text-center mb-3 portal-gradient-text">
+              ศูนย์บริการข้อมูลภาครัฐ
+            </h1>
+            <p className="text-sm md:text-base text-muted-foreground text-center max-w-lg mb-10 leading-relaxed">
+              สอบถามข้อมูลจากหน่วยงานภาครัฐได้ครบในที่เดียว —{' '}
+              <span className="text-foreground font-medium">Single Portal</span> เพื่อประชาชน
             </p>
             {/* <div className="flex flex-wrap justify-center gap-3 mb-8">
               {agencies.map((a) => (
