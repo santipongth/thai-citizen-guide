@@ -7,7 +7,10 @@ DB:     PostgreSQL
 Entry-point:
     uvicorn app.main:app --reload
 
-MCP server is mounted at /mcp  (SSE transport)
+MCP server:
+  - SSE transport  →  GET /sse   (opens stream, server emits session endpoint URL)
+                      POST /messages/  (send JSON-RPC commands, ref session_id query param)
+  - Streamable-HTTP →  /mcp/  (legacy mount, kept for backward compat)
 REST API is served under /api/v1
 """
 
@@ -15,6 +18,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from mcp.server.sse import SseServerTransport
+from starlette.requests import Request
+from starlette.responses import Response
 
 from app.config import settings
 from app.database import init_db, close_db
@@ -23,6 +29,26 @@ from app.routers import agencies, conversations, messages, chat, dashboard, feed
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
 
 mcp_app = mcp.http_app(path="/")
+
+# ---------------------------------------------------------------------------
+# SSE transport — GET /sse + POST /messages/
+# (follows OneChat MCP SSE spec: server generates session_id, no pre-auth needed)
+# ---------------------------------------------------------------------------
+
+_sse_transport = SseServerTransport("/messages/")
+
+
+async def _sse_handler(request: Request) -> Response:
+    """Open an SSE stream; server auto-generates session_id and emits endpoint URL."""
+    async with _sse_transport.connect_sse(
+        request.scope, request.receive, request._send
+    ) as streams:
+        await mcp._mcp_server.run(
+            streams[0],
+            streams[1],
+            mcp._mcp_server.create_initialization_options(),
+        )
+    return Response()
 
 # ---------------------------------------------------------------------------
 # Lifespan — startup / shutdown
@@ -49,7 +75,8 @@ app = FastAPI(
     version=settings.APP_VERSION,
     description=(
         "Central AI Chatbot Portal API.\n\n"
-        "**MCP server** (for LLM clients) is available at `/mcp/`.\n\n"
+        "**MCP SSE** (OneChat-compatible): `GET /sse` → open stream, `POST /messages/` → send commands.\n\n"
+        "**MCP Streamable-HTTP** (legacy): available at `/mcp/`.\n\n"
         "**REST API** endpoints are under `/api/v1`."
     ),
     docs_url="/docs",
@@ -82,10 +109,19 @@ app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(feedback.router, prefix="/api/v1")
 
 # ---------------------------------------------------------------------------
-# MCP server — mount as sub-application
+# MCP server — streamable-HTTP sub-app (backward compat)
 # ---------------------------------------------------------------------------
 
 app.mount("/mcp", mcp_app)
+
+# ---------------------------------------------------------------------------
+# MCP SSE transport — root-level routes (OneChat spec)
+# GET  /sse           → open SSE stream; server emits endpoint URL with session_id
+# POST /messages/     → send MCP JSON-RPC message, ?session_id=<id> required
+# ---------------------------------------------------------------------------
+
+app.add_route("/sse", _sse_handler, methods=["GET"])
+app.mount("/messages", _sse_transport.handle_post_message)
 
 # ---------------------------------------------------------------------------
 # Health check
