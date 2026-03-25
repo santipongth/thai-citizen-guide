@@ -13,7 +13,7 @@ import time
 import uuid
 
 from fastapi import APIRouter, HTTPException, Query, status, Depends
-from app.auth.dependencies import require_admin, get_current_user
+from app.auth.dependencies import require_admin, get_current_user, get_current_user_optional
 from app.models.user import User
 from tortoise.exceptions import DoesNotExist
 
@@ -37,7 +37,7 @@ router = APIRouter(prefix="/conversations", tags=["Conversations"])
     summary="Save conversation with messages",
     status_code=status.HTTP_201_CREATED,
 )
-async def save_conversation(body: SaveConversationRequest, user: User = Depends(get_current_user)) -> dict:
+async def save_conversation(body: SaveConversationRequest, user: User | None = Depends(get_current_user_optional)) -> dict:
     # Create conversation record
     conv = await Conversation.create(
         title=body.title or "สนทนาใหม่",
@@ -46,7 +46,7 @@ async def save_conversation(body: SaveConversationRequest, user: User = Depends(
         status=body.status,
         message_count=len(body.messages),
         response_time=body.response_time,
-        user_id=user.id,
+        user_id=user.id if user else None,
     )
 
     # Bulk-insert messages
@@ -63,7 +63,7 @@ async def save_conversation(body: SaveConversationRequest, user: User = Depends(
                     sources=m.sources or [],
                     rating=m.rating,
                     feedback_text=m.feedback_text,
-                    user_id=user.id,
+                    user_id=user.id if user else None,
                 )
             )
         await Message.bulk_create(msg_rows, ignore_conflicts=True)
@@ -103,7 +103,8 @@ async def list_conversations(
             title=c.title,
             preview=c.preview or "",
             date=c.created_at.strftime("%Y-%m-%d"),
-            agencies=c.agencies or [],
+            # agencies=c.agencies or [],
+            agencies=[],
             status=c.status,
             message_count=c.message_count or 0,
             response_time=c.response_time or "",

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { LogIn } from "lucide-react";
+import { AppLogo } from "@/components/ui/AppLogo";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ export default function LoginPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (!isLoading && user) {
-      navigate("/", { replace: true });
+      navigate("/chat", { replace: true });
     }
   }, [user, isLoading, navigate]);
 
@@ -33,7 +34,7 @@ export default function LoginPage() {
       });
       setAuth(res.access_token, res.user);
       toast.success("เข้าสู่ระบบสำเร็จ");
-      navigate("/", { replace: true });
+      navigate("/chat", { replace: true });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "เข้าสู่ระบบไม่สำเร็จ");
     } finally {
@@ -47,9 +48,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-xl gov-gradient flex items-center justify-center text-white font-bold text-lg mx-auto">
-            AI
-          </div>
+          <AppLogo className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg mx-auto" />
           <CardTitle className="text-xl">เข้าสู่ระบบ Admin</CardTitle>
           <p className="text-sm text-muted-foreground">
             AI Portal กลาง — ระบบบูรณาการข้อมูลหน่วยงานภาครัฐ

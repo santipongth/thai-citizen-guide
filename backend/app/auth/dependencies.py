@@ -24,6 +24,7 @@ from app.auth.security import decode_access_token
 from app.models.user import User
 
 _bearer = HTTPBearer(auto_error=True)
+_bearer_optional = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
@@ -47,6 +48,17 @@ async def get_current_user(
     if not user:
         raise exc
     return user
+
+async def get_current_user_optional(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_optional),
+) -> User | None:
+    if credentials is None:
+        return None
+
+    try:
+        return await get_current_user(credentials)
+    except HTTPException:
+        return None
 
 
 async def require_admin(user: User = Depends(get_current_user)) -> User:

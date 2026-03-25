@@ -33,7 +33,7 @@ from starlette.responses import Response
 from app.config import settings
 from app.database import init_db, close_db
 from app.mcp.server import mcp
-from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed
+from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
 
 mcp_app = mcp.http_app(path="/")
@@ -84,7 +84,7 @@ app = FastAPI(
     description=(
         "Central AI Chatbot Portal API.\n\n"
         "**MCP SSE** (OneChat-compatible): `GET /sse` → open stream, `POST /messages/` → send commands.\n\n"
-        "**MCP Streamable-HTTP** (legacy): available at `/mcp/`.\n\n"
+        "**MCP Streamable-HTTP** (legacy): available at `/mcp`.\n\n"
         "**REST API** endpoints are under `/api/v1`."
     ),
     docs_url="/docs",
@@ -112,7 +112,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(agencies.router, prefix="/api/v1")
 app.include_router(conversations.router, prefix="/api/v1")
 app.include_router(messages.router, prefix="/api/v1")
-# app.include_router(chat.router, prefix="/api/v1")
+app.include_router(chat.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(feedback.router, prefix="/api/v1")
 

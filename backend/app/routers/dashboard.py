@@ -8,10 +8,15 @@ Endpoint
 
 import random
 import time
+from datetime import datetime, time as dt_time
 
 from fastapi import APIRouter, Depends
 from app.auth.dependencies import require_admin, get_current_user
 from app.models.user import User
+from app.models.conversation import Message
+from app.models.agency import Agency
+from tortoise import Tortoise
+
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -20,7 +25,9 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 async def dashboard_stats(user: User = Depends(get_current_user)) -> dict:
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="ไม่สามารถเข้าถึงข้อมูลนี้ได้")
-    
+
+    conn = Tortoise.get_connection("default")
+
     start = time.time()
 
     stats = {
@@ -29,6 +36,22 @@ async def dashboard_stats(user: User = Depends(get_current_user)) -> dict:
         "avgResponseTime": f"{(2.0 + random.random() * 0.6):.1f} วินาที",
         "satisfactionRate": round(93.5 + random.random() * 2, 1),
     }
+
+    stats["totalQuestions"] = await Message.all().count()
+
+    today_start = datetime.combine(datetime.now().date(), dt_time.min)
+    today_end = datetime.combine(datetime.now().date(), dt_time.max)
+    stats["todayQuestions"] = await Message.filter(created_at__range=(today_start, today_end)).count()
+
+    raw_data = await conn.execute_query_dict("SELECT AVG(response_time) AS avg_response_time FROM messages")
+    avg_response_time = (raw_data[0]["avg_response_time"] if raw_data else 0) / 1000
+    stats["avgResponseTime"] = f"{avg_response_time:.2f} วินาที"
+
+    raw_data = await conn.execute_query_dict("SELECT rating, count(1) as cnt FROM messages where rating IS NOT NULL group BY rating")
+    rating_counts = {row["rating"]: row["cnt"] for row in raw_data}
+    total_rated = sum(rating_counts.values())
+    satisfaction_rate = (rating_counts.get("up", 0) / total_rated * 100) if total_rated > 0 else 0
+    stats["satisfactionRate"] = round(satisfaction_rate, 1)
 
     agency_usage = [
         {"name": "อย.", "value": 12450 + random.randint(0, 100), "fill": "hsl(145 55% 40%)"},

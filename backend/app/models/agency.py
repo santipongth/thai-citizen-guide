@@ -3,7 +3,7 @@ from enum import Enum
 
 from tortoise import fields
 from tortoise.models import Model
-
+from app.utils import generate_uuid
 
 class ConnectionType(str, Enum):
     MCP = "MCP"
@@ -22,7 +22,7 @@ class Agency(Model):
     Mirrors the `agencies` table from the original Supabase schema.
     """
 
-    id = fields.UUIDField(primary_key=True, default=uuid.uuid4)
+    id = fields.UUIDField(primary_key=True, default=generate_uuid)
     name = fields.CharField(max_length=255)
     short_name = fields.CharField(max_length=50, null=True)
     logo = fields.CharField(max_length=20, null=True)           # emoji icon

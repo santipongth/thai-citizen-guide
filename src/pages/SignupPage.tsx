@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { UserPlus } from "lucide-react";
+import { AppLogo } from "@/components/ui/AppLogo";
 
 export default function SignupPage() {
   const navigate = useNavigate();
@@ -31,7 +32,7 @@ export default function SignupPage() {
       );
       setAuth(res.access_token, res.user);
       toast.success("สมัครสมาชิกสำเร็จ!");
-      navigate("/", { replace: true });
+      navigate("/chat", { replace: true });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "สมัครสมาชิกไม่สำเร็จ");
     } finally {
@@ -43,9 +44,7 @@ export default function SignupPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-xl gov-gradient flex items-center justify-center text-white font-bold text-lg mx-auto">
-            AI
-          </div>
+          <AppLogo className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg mx-auto" />
           <CardTitle className="text-xl">สมัครสมาชิก</CardTitle>
           <p className="text-sm text-muted-foreground">สร้างบัญชี Admin สำหรับ AI Portal กลาง</p>
         </CardHeader>

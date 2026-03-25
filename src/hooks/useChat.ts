@@ -14,6 +14,7 @@ export function useChat() {
   const [activeStepCount, setActiveStepCount] = useState(0);
   const [currentSteps, setCurrentSteps] = useState<AgentStep[]>(mockAgentSteps);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -41,16 +42,18 @@ export function useChat() {
     setActiveStepCount(0);
 
     // Animate placeholder steps while waiting
-    const placeholderSteps = mockAgentSteps;
-    setCurrentSteps(placeholderSteps);
-    placeholderSteps.forEach((_, i) => {
-      setTimeout(() => setActiveStepCount(i + 1), (i + 1) * 500);
-    });
+    // const placeholderSteps = mockAgentSteps;
+    // setCurrentSteps(placeholderSteps);
+    // placeholderSteps.forEach((_, i) => {
+    //   setTimeout(() => setActiveStepCount(i + 1), (i + 1) * 500);
+    // });
 
     try {
-      const response = await sendChatQuery(question);
+      const response = await sendChatQuery({ query: question, conversation_id: conversationId || undefined });
 
       if (response.success) {
+        setConversationId(response.conversation_id);
+
         // Update steps with real data from API
         setCurrentSteps(response.data.agentSteps as AgentStep[]);
         setActiveStepCount(response.data.agentSteps.length);
@@ -74,24 +77,24 @@ export function useChat() {
         setActiveStepCount(0);
 
         // Save conversation to database
-        const autoTitle = question.length > 50 ? question.slice(0, 50) + '...' : question;
-        saveConversation({
-          title: autoTitle,
-          preview: question,
-          agencies: response.data.agencies?.map((a) => a.name) || [],
-          status: 'success',
-          responseTime: `${(response.responseTime / 1000).toFixed(1)} วินาที`,
-          messages: [
-            { id: userMsg.id, role: 'user', content: question },
-            {
-              id: aiMsgId,
-              role: 'assistant',
-              content: response.data.answer,
-              agentSteps: response.data.agentSteps,
-              sources: response.data.references,
-            },
-          ],
-        });
+        // const autoTitle = question.length > 50 ? question.slice(0, 50) + '...' : question;
+        // saveConversation({
+        //   title: autoTitle,
+        //   preview: question,
+        //   agencies: response.data.agencies?.map((a) => a.name) || [],
+        //   status: 'success',
+        //   responseTime: `${(response.responseTime / 1000).toFixed(1)} วินาที`,
+        //   messages: [
+        //     { id: userMsg.id, role: 'user', content: question },
+        //     {
+        //       id: aiMsgId,
+        //       role: 'assistant',
+        //       content: response.data.answer,
+        //       agentSteps: response.data.agentSteps,
+        //       sources: response.data.references,
+        //     },
+        //   ],
+        // });
 
         return;
       }
@@ -129,6 +132,7 @@ export function useChat() {
     setActiveStepCount(0);
     setInput('');
     setCurrentSteps(mockAgentSteps);
+    setConversationId(null);
   }, []);
 
   return {
