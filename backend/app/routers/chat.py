@@ -29,6 +29,7 @@ from app.models.conversation import Conversation, Message
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.auth.dependencies import get_current_user_optional
+from app.utils import generate_uuid
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -515,6 +516,8 @@ from langgraph.graph import StateGraph, START, END
 @dataclass
 class AgentState:
     query: str = ""
+    conversation_id: str = ""
+
     agencies: list[dict] = field(default_factory=list)
     routes: list[dict] = field(default_factory=list)
     results: Annotated[list[dict], operator.add] = field(default_factory=list)
@@ -540,6 +543,8 @@ async def call_llm(messages: list[dict]) -> str:
     if not llm_api_key:
         raise ValueError("Missing LLM API key")
 
+    print(f"Calling LLM with messages: {messages}")
+
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
             os.getenv("PARSE_SPEC_URL", ""),
@@ -553,7 +558,9 @@ async def call_llm(messages: list[dict]) -> str:
             },
         )
     if resp.status_code == 200:
-        return resp.json().get("choices", [{}])[0].get("message", {})
+        resp_data = resp.json()
+        print(f"LLM response: {resp_data}")
+        return resp_data.get("choices", [{}])[0].get("message", {})
     else:
         raise ValueError(f"LLM API error: {resp.status_code} {resp.text}")
 
@@ -798,15 +805,20 @@ async def chat(body: ChatRequest, user: User | None = Depends(get_current_user_o
 
     if not query:
         return {"success": False, "error": "Missing query"}
+
+    conversation_id = body.conversation_id or str(generate_uuid())
     
     app = build_graph()
-    result = await app.ainvoke({"query": query})
+    
+    result = await app.ainvoke({"query": query, "conversation_id": conversation_id})
 
     response_time = int((time.time() - start) * 1000)
+    
     answer = result.get("final_answer", "")
 
     if not body.conversation_id:
         conv = await Conversation.create(
+            id=conversation_id,
             title=query[:50],
             preview=query[:100],
             agencies=[],
@@ -816,20 +828,20 @@ async def chat(body: ChatRequest, user: User | None = Depends(get_current_user_o
             user_id=user.id if user else None,
         )
     else:
-        conv = await Conversation.get(id=body.conversation_id)
+        conv = await Conversation.get(id=conversation_id)
         conv.message_count += len(answer)
         await conv.save()
 
     await Message.bulk_create([
         Message(
-            conversation_id=conv.id,
+            conversation_id=conversation_id,
             role='user',
             content=query,
             agent_steps=[],
             sources=[],
         ),
         Message(
-            conversation_id=conv.id,
+            conversation_id=conversation_id,
             role='assistant',
             content=answer,
             agent_steps=[],
@@ -847,6 +859,6 @@ async def chat(body: ChatRequest, user: User | None = Depends(get_current_user_o
             "agencies": [],
             "confidence": 0.0,
         },
-        "conversation_id": conv.id,
+        "conversation_id": conversation_id,
         "responseTime": response_time,
     }

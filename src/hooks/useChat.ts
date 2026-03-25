@@ -42,11 +42,11 @@ export function useChat() {
     setActiveStepCount(0);
 
     // Animate placeholder steps while waiting
-    const placeholderSteps = mockAgentSteps;
-    setCurrentSteps(placeholderSteps);
-    placeholderSteps.forEach((_, i) => {
-      setTimeout(() => setActiveStepCount(i + 1), (i + 1) * 500);
-    });
+    // const placeholderSteps = mockAgentSteps;
+    // setCurrentSteps(placeholderSteps);
+    // placeholderSteps.forEach((_, i) => {
+    //   setTimeout(() => setActiveStepCount(i + 1), (i + 1) * 500);
+    // });
 
     try {
       const response = await sendChatQuery({ query: question, conversation_id: conversationId || undefined });
