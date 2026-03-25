@@ -22,13 +22,79 @@ model = ChatOpenAI(
     },
 )
 
+llm = create_agent(model)
+
+mcp_client = MultiServerMCPClient({
+    "agency": {
+        "transport": "http",
+        "url": "http://185.84.161.24/mcp",
+    }
+})
+
+# ------------------------------------------------------------
+# Router node system prompt and helper functions
+# ------------------------------------------------------------
+
+ROUTER_SYSTEM_PROMPT = """Analyze this query and determine which government agencies to consult.
+For each relevant agency, generate a targeted sub-question optimized for that agency's data scope.
+
+Available sources:
+{available_sources}
+
+Return ONLY the agencies that are relevant to the query.
+Respond in JSON format:
+{{
+  "routes": [
+    {{
+      "agency_id": "<uuid>",
+      "agency_name": "<name>",
+      "connection_type": "<A2A|API|MCP>",
+      "sub_question": "<targeted question optimized for this agency's domain>"
+    }}
+  ]
+}}"""
+
+def format_available_sources(agencies: list[dict]) -> str:
+    """แปลง list_agency response เป็น available sources block สำหรับ prompt"""
+    lines = []
+    for ag in agencies:
+        scope = ", ".join(ag["data_scope"])
+        lines.append(
+            f'- {ag["name"]} (id: {ag["id"]}, type: {ag["connection_type"]}): '
+            f'{ag["description"]} — ขอบเขตข้อมูล: {scope}'
+        )
+    return "\n".join(lines)
+
+async def router_node(state: AgentState) -> dict:
+    # 1) ดึง agency list จาก MCP tool
+    agencies_response = await mcp_client.call_tool("list_agency")
+    agencies = agencies_response["agencies"]
+
+    # 2) สร้าง prompt
+    sources_block = format_available_sources(agencies)
+    system_prompt = ROUTER_SYSTEM_PROMPT.format(available_sources=sources_block)
+
+    # 3) ให้ LLM route
+    response = await llm.ainvoke([
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=state["query"]),
+    ])
+
+    routes = parse_json(response.content)["routes"]
+
+    # 4) สร้าง lookup map สำหรับ downstream nodes
+    agency_map = {ag["id"]: ag for ag in agencies}
+    for route in routes:
+        route["endpoint_url"] = agency_map[route["agency_id"]]["endpoint_url"]
+        route["expected_payload"] = agency_map[route["agency_id"]].get("expected_payload")
+
+    return {"routes": routes, "agency_map": agency_map}
+
+# ------------------------------------------------------------
+# Main function to test the router node
+# ------------------------------------------------------------
+
 async def main():
-    client = MultiServerMCPClient({
-        "agency": {
-            "transport": "http",
-            "url": "http://185.84.161.24/mcp/",
-        }
-    })
 
     tools = await client.get_tools()
     # print(f"Loaded {len(tools)} tools: {[t.name for t in tools]}")
@@ -54,10 +120,9 @@ async def main():
         ]
     })
     
-    for message in result["messages"]:
-        print(f"{message.__class__.__name__}: ", end="")
-        # content = re.sub(r"<think>.*?</think>", "", message.content, flags=re.DOTALL).strip()
-        print(message.content)
+    message = result["messages"][-1].content or ""
+    message = re.sub(r'<think>.*?</think>', '', message, flags=re.DOTALL)
+    print(message)
 
 if __name__ == "__main__":
     asyncio.run(main())
