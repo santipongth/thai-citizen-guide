@@ -280,7 +280,15 @@ async def synthesize(state: AgentState) -> dict:
 - หากข้อมูลจากหลายหน่วยงานเกี่ยวข้องกัน ให้เชื่อมโยงและสรุปให้เป็นคำตอบเดียวที่สอดคล้องกัน
 - ห้ามเพิ่มข้อมูลที่ไม่มีในแหล่งข้อมูลที่ให้มา
 - จบคำตอบด้วยข้อแนะนำเพิ่มเติมหากเหมาะสม
-- หากมีลิงก์ในข้อมูลที่ได้มา ให้เขียนเป็นข้อความที่แสดงและลิงก์ในรูปแบบ Markdown link เช่น [ข้อความที่แสดง](ลิงก์)"""},
+- หากมีลิงก์ในข้อมูลที่ได้มา ให้เขียนเป็นข้อความที่แสดงและลิงก์ในรูปแบบ Markdown link เช่น [ข้อความที่แสดง](ลิงก์)
+
+กฎสำหรับวิเคราะห์หมวดหมู่คำถาม:
+- วิเคราะห์คำถามของผู้ใช้และระบุหมวดหมู่ที่ตรงที่สุด 1 หมวด จากนี้: สอบถามข้อมูล | ตรวจสอบสถานะ | ขั้นตอนดำเนินการ | กฎหมาย/ระเบียบ
+- **ต้องวาง tag นี้หลังคำตอบหลักเสมอ:**
+
+<category>หมวดหมู่ที่วิเคราะห์ได้</category>
+
+ตัวอย่าง: <category>ขั้นตอนดำเนินการ</category>"""},
         {"role": "user", "content": f"""\
 คำถามจากประชาชน: {state.query}\n\n
 ข้อมูลที่สืบค้นได้จากหน่วยงานราชการ:\n{results_text}\n\n
@@ -387,6 +395,14 @@ async def chat(body: ChatRequest, user: User | None = Depends(get_current_user_o
         else:
             references = []
 
+    category = None
+
+    if '<category>' in answer:
+        parts = re.split(r'<category>(.*?)</category>', answer, flags=re.DOTALL)
+        print(f"Answer parts after category split: {parts}")
+        if len(parts) == 3:
+            category = parts[1].strip()
+
     if not body.conversation_id:
         conv = await Conversation.create(
             id=conversation_id,
@@ -403,27 +419,29 @@ async def chat(body: ChatRequest, user: User | None = Depends(get_current_user_o
         conv.message_count += len(answer)
         await conv.save()
 
-    await Message.bulk_create([
-        Message(
-            conversation_id=conversation_id,
-            role='user',
-            content=query,
-            agent_steps=[],
-            sources=[],
-        ),
-        Message(
-            conversation_id=conversation_id,
-            role='assistant',
-            content=answer,
-            agent_steps=[],
-            sources=references,
-            response_time=response_time,
-        ),
-    ], ignore_conflicts=True)
+    await Message.create(
+        conversation_id=conversation_id,
+        role='user',
+        content=query,
+        agent_steps=[],
+        sources=[],
+        category=category,
+    )
+    
+    response_msg = await Message.create(
+        conversation_id=conversation_id,
+        role='assistant',
+        content=answer,
+        agent_steps=[],
+        sources=references,
+        response_time=response_time,
+        agency_ids=[str(ag["agency_id"]) for ag in result.get("routes", [])],
+    )
 
     return {
         "success": True,
         "data": {
+            "message_id": response_msg.id,
             "answer": answer,
             "references": references,
             "agentSteps": [],

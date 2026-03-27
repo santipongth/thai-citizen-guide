@@ -111,14 +111,14 @@ export default function HistoryPage() {
           >
             ทั้งหมด
           </button>
-          {allAgencies.map((a) => (
+          {/* {allAgencies.map((a) => (
             <button key={a}
               onClick={() => { setFilterAgency(filterAgency === a ? null : a); setPage(1); }}
               className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${filterAgency === a ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-accent'}`}
             >
               {a}
             </button>
-          ))}
+          ))} */}
         </div>
 
         {/* Date range picker */}

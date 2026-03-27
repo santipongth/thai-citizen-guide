@@ -9,6 +9,7 @@ export interface ChatApiRequest {
 export interface ChatApiResponse {
   success: boolean;
   data: {
+    message_id: string;
     answer: string;
     references: { agency: string; title: string; url: string }[];
     agentSteps: AgentStep[];
