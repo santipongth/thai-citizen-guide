@@ -58,6 +58,8 @@ class Agency(Model):
 
     # Metrics
     total_calls = fields.IntField(default=0)
+    rating_up = fields.IntField(default=0)
+    rating_down = fields.IntField(default=0)
 
     # Timestamps
     created_at = fields.DatetimeField(auto_now_add=True)

@@ -8,6 +8,7 @@ class ChatRequest(BaseModel):
     conversation_id: uuid.UUID | None = None
 
 class ChatResponseData(BaseModel):
+    message_id: uuid.UUID
     answer: str
     references: list[dict[str, Any]]
     agentSteps: list[dict[str, Any]]

@@ -53,6 +53,8 @@ class Message(Model):
     rating = fields.CharField(max_length=10, null=True) # up | down | None
     feedback_text = fields.TextField(null=True)
     response_time = fields.IntField(null=True)        # in seconds
+    category = fields.CharField(max_length=50, null=True) # สอบถามข้อมูล | ตรวจสอบสถานะ | ขั้นตอนดำเนินการ | กฎหมาย/ระเบียบ
+    agency_ids = fields.JSONField(default=list, null=True)     # list of agency ids involved in this message
 
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)

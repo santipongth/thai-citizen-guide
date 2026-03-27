@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { agencies } from "@/data/mockData";
+// import { agencies } from "@/data/mockData";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { useAgencies } from "@/hooks/useAgencies";
 
 interface NodeData {
   id: string;
@@ -96,6 +97,7 @@ function ArrowDown() {
 
 export default function ArchitecturePage() {
   const [expandedNode, setExpandedNode] = useState<string | null>(null);
+  const { data: agencies = [], isLoading } = useAgencies();
 
   const toggle = (id: string) => setExpandedNode(prev => prev === id ? null : id);
 

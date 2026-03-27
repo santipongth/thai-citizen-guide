@@ -16,6 +16,7 @@ from app.models.user import User
 from app.models.conversation import Message
 from app.models.agency import Agency
 from tortoise import Tortoise
+from tortoise.functions import Count
 
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
@@ -31,10 +32,10 @@ async def dashboard_stats(user: User = Depends(get_current_user)) -> dict:
     start = time.time()
 
     stats = {
-        "totalQuestions": 48290 + random.randint(0, 50),
-        "todayQuestions": 150 + random.randint(0, 20),
-        "avgResponseTime": f"{(2.0 + random.random() * 0.6):.1f} วินาที",
-        "satisfactionRate": round(93.5 + random.random() * 2, 1),
+        # "totalQuestions": 48290 + random.randint(0, 50),
+        # "todayQuestions": 150 + random.randint(0, 20),
+        # "avgResponseTime": f"{(2.0 + random.random() * 0.6):.1f} วินาที",
+        # "satisfactionRate": round(93.5 + random.random() * 2, 1),
     }
 
     stats["totalQuestions"] = await Message.all().count()
@@ -53,28 +54,44 @@ async def dashboard_stats(user: User = Depends(get_current_user)) -> dict:
     satisfaction_rate = (rating_counts.get("up", 0) / total_rated * 100) if total_rated > 0 else 0
     stats["satisfactionRate"] = round(satisfaction_rate, 1)
 
+    # agency_usage = [
+    #     {"name": "อย.", "value": 12450 + random.randint(0, 100), "fill": "hsl(145 55% 40%)"},
+    #     {"name": "กรมสรรพากร", "value": 18320 + random.randint(0, 100), "fill": "hsl(213 70% 45%)"},
+    #     {"name": "กรมการปกครอง", "value": 9870 + random.randint(0, 100), "fill": "hsl(25 85% 55%)"},
+    #     {"name": "กรมที่ดิน", "value": 7650 + random.randint(0, 100), "fill": "hsl(280 50% 50%)"},
+    # ]
+
     agency_usage = [
-        {"name": "อย.", "value": 12450 + random.randint(0, 100), "fill": "hsl(145 55% 40%)"},
-        {"name": "กรมสรรพากร", "value": 18320 + random.randint(0, 100), "fill": "hsl(213 70% 45%)"},
-        {"name": "กรมการปกครอง", "value": 9870 + random.randint(0, 100), "fill": "hsl(25 85% 55%)"},
-        {"name": "กรมที่ดิน", "value": 7650 + random.randint(0, 100), "fill": "hsl(280 50% 50%)"},
+        {"name": a["name"], "value": a["total_calls"], "fill": a["color"]}
+        for a in await Agency.all().values("name", "color", "total_calls")
     ]
 
+    day_names = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"]
+    raw_weekly = await conn.execute_query_dict(
+        """
+        SELECT EXTRACT(ISODOW FROM created_at)::int AS dow, COUNT(*) AS questions
+        FROM messages
+        WHERE created_at >= date_trunc('week', NOW())
+          AND created_at <  date_trunc('week', NOW()) + INTERVAL '7 days'
+        GROUP BY dow
+        """
+    )
+    dow_map = {row["dow"]: row["questions"] for row in raw_weekly}
     weekly_trend = [
-        {"day": "จันทร์", "questions": 170 + random.randint(0, 30)},
-        {"day": "อังคาร", "questions": 200 + random.randint(0, 30)},
-        {"day": "พุธ", "questions": 185 + random.randint(0, 30)},
-        {"day": "พฤหัสบดี", "questions": 230 + random.randint(0, 30)},
-        {"day": "ศุกร์", "questions": 210 + random.randint(0, 30)},
-        {"day": "เสาร์", "questions": 80 + random.randint(0, 30)},
-        {"day": "อาทิตย์", "questions": 55 + random.randint(0, 30)},
+        {"day": day_names[i], "questions": dow_map.get(i + 1, 0)}
+        for i in range(7)
     ]
+
+    # category_data = [
+    #     {"category": "สอบถามข้อมูล", "count": 22450 + random.randint(0, 200)},
+    #     {"category": "ตรวจสอบสถานะ", "count": 12300 + random.randint(0, 200)},
+    #     {"category": "ขั้นตอนดำเนินการ", "count": 8900 + random.randint(0, 200)},
+    #     {"category": "กฎหมาย/ระเบียบ", "count": 4640 + random.randint(0, 200)},
+    # ]
 
     category_data = [
-        {"category": "สอบถามข้อมูล", "count": 22450 + random.randint(0, 200)},
-        {"category": "ตรวจสอบสถานะ", "count": 12300 + random.randint(0, 200)},
-        {"category": "ขั้นตอนดำเนินการ", "count": 8900 + random.randint(0, 200)},
-        {"category": "กฎหมาย/ระเบียบ", "count": 4640 + random.randint(0, 200)},
+        {"category": c["category"], "count": c["count"]}
+        for c in await Message.filter(category__isnull=False).annotate(count=Count("id")).group_by("category").values("category", "count")
     ]
 
     return {

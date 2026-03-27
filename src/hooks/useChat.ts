@@ -58,7 +58,7 @@ export function useChat() {
         setCurrentSteps(response.data.agentSteps as AgentStep[]);
         setActiveStepCount(response.data.agentSteps.length);
 
-        const aiMsgId = generateUniqueId();
+        const aiMsgId = response.data.message_id || generateUniqueId();
         const aiMsg: ChatMessage = {
           id: aiMsgId,
           role: 'assistant',

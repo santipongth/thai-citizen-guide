@@ -15,6 +15,7 @@ from tortoise.functions import Count
 
 from app.models.conversation import Conversation, Message
 from app.schemas.conversation import FeedbackStats
+from app.models.agency import Agency
 
 router = APIRouter(prefix="/feedback", tags=["Feedback"])
 
@@ -89,36 +90,47 @@ async def feedback_stats(user: User = Depends(get_current_user)) -> FeedbackStat
     # -------------------------------------------------------------------
     # Agency breakdown
     # -------------------------------------------------------------------
-    agency_map: dict[str, dict] = {}
-    conv_ids = list({m["conversation_id"] for m in rated_messages})
+    # agency_map: dict[str, dict] = {}
+    # conv_ids = list({m["conversation_id"] for m in rated_messages})
 
-    if conv_ids:
-        convs = await Conversation.filter(id__in=conv_ids).values("id", "agencies")
-        conv_agency_map = {str(c["id"]): c["agencies"] or [] for c in convs}
+    # if conv_ids:
+    #     convs = await Conversation.filter(id__in=conv_ids).values("id", "agencies")
+    #     conv_agency_map = {str(c["id"]): c["agencies"] or [] for c in convs}
 
-        for m in rated_messages:
-            conv_id = str(m["conversation_id"])
-            for ag in conv_agency_map.get(conv_id, []):
-                if ag not in agency_map:
-                    agency_map[ag] = {"up": 0, "down": 0}
-                if m["rating"] == "up":
-                    agency_map[ag]["up"] += 1
-                else:
-                    agency_map[ag]["down"] += 1
+    #     for m in rated_messages:
+    #         conv_id = str(m["conversation_id"])
+    #         for ag in conv_agency_map.get(conv_id, []):
+    #             if ag not in agency_map:
+    #                 agency_map[ag] = {"up": 0, "down": 0}
+    #             if m["rating"] == "up":
+    #                 agency_map[ag]["up"] += 1
+    #             else:
+    #                 agency_map[ag]["down"] += 1
 
-    agency_breakdown = sorted(
-        [
-            {
-                "agency": ag,
-                "up": v["up"],
-                "down": v["down"],
-                "rate": round((v["up"] / (v["up"] + v["down"])) * 100) if (v["up"] + v["down"]) > 0 else 0,
-            }
-            for ag, v in agency_map.items()
-        ],
-        key=lambda x: x["up"] + x["down"],
-        reverse=True,
-    )
+    # agency_breakdown = sorted(
+    #     [
+    #         {
+    #             "agency": ag,
+    #             "up": v["up"],
+    #             "down": v["down"],
+    #             "rate": round((v["up"] / (v["up"] + v["down"])) * 100) if (v["up"] + v["down"]) > 0 else 0,
+    #         }
+    #         for ag, v in agency_map.items()
+    #     ],
+    #     key=lambda x: x["up"] + x["down"],
+    #     reverse=True,
+    # )
+
+    agency_breakdown = [
+        {
+            "agency": a["name"],
+            "up": a["rating_up"],
+            "down": a["rating_down"],
+            "rate": round((a["rating_up"] / (a["rating_up"] + a["rating_down"])) * 100)
+                if (a["rating_up"] + a["rating_down"]) > 0 else 0
+        }
+        for a in await Agency.all().values("name", "rating_up", "rating_down")
+    ]
 
     return FeedbackStats(
         total_ratings=total_ratings,
