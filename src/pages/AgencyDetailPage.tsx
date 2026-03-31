@@ -28,7 +28,7 @@ export default function AgencyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: agencies = [], isLoading: agenciesLoading } = useAgencies();
-  const { data: logs = [], isLoading: logsLoading } = useConnectionLogs(id);
+  const { data: logs, isLoading: logsLoading } = useConnectionLogs({ agencyId: id });
   const testMutation = useTestConnection();
 
   const agency = agencies.find((a) => a.id === id);
@@ -40,17 +40,17 @@ export default function AgencyDetailPage() {
     });
   };
   const stats = useMemo(() => {
-    if (!logs.length) return { total: 0, success: 0, error: 0, avgLatency: 0, successRate: 0 };
-    const success = logs.filter((l) => l.status === "success").length;
-    const error = logs.filter((l) => l.status === "error").length;
-    const avgLatency = Math.round(logs.reduce((s, l) => s + l.latencyMs, 0) / logs.length);
-    return { total: logs.length, success, error, avgLatency, successRate: Math.round((success / logs.length) * 100) };
+    if (!logs) return { total: 0, success: 0, error: 0, avgLatency: 0, successRate: 0 };
+    const success = logs.successful_connections;
+    const error = logs.failed_connections;
+    const avgLatency = logs.average_latency_ms;
+    return { total: logs.total_connections, success, error, avgLatency, successRate: Math.round((success / logs.total_connections) * 100) };
   }, [logs]);
 
   const hourlyData = useMemo(() => {
     const buckets: Record<string, number> = {};
-    logs.forEach((l) => {
-      const hour = format(new Date(l.createdAt), "MM/dd HH:00");
+    logs.items.forEach((l) => {
+      const hour = format(new Date(l.created_at), "MM/dd HH:00");
       buckets[hour] = (buckets[hour] || 0) + 1;
     });
     return Object.entries(buckets)
@@ -158,7 +158,7 @@ export default function AgencyDetailPage() {
         <Card>
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-              <Clock className="h-3.5 w-3.5" /> ค่าเฉลี่ย Latency
+              <Clock className="h-3.5 w-3.5" /> ค่าเฉลี่ย Latency (24 ชม.)
             </div>
             <p className="text-2xl font-bold text-foreground">{stats.avgLatency} ms</p>
           </CardContent>
@@ -200,7 +200,7 @@ export default function AgencyDetailPage() {
                     <Skeleton key={i} className="h-10 w-full" />
                   ))}
                 </div>
-              ) : logs.length === 0 ? (
+              ) : logs.total_connections === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">ยังไม่มีประวัติการเชื่อมต่อ</p>
               ) : (
                 <Table>
@@ -214,10 +214,10 @@ export default function AgencyDetailPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {logs.map((log) => (
+                    {logs.items.map((log) => (
                       <TableRow key={log.id}>
                         <TableCell className="text-xs font-mono text-muted-foreground">
-                          {format(new Date(log.createdAt), "dd/MM HH:mm:ss")}
+                          {format(new Date(log.created_at), "dd/MM HH:mm:ss")}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-[10px]">
@@ -230,7 +230,7 @@ export default function AgencyDetailPage() {
                           </span>
                         </TableCell>
                         <TableCell className="text-xs font-mono">
-                          {log.latencyMs} ms
+                          {log.latency_ms} ms
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {log.detail}

@@ -20,6 +20,7 @@ import { useAgencies } from "@/hooks/useAgencies";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
+import { useConnectionLogInfo } from "@/hooks/useConnectionLogs";
 
 const PAGE_SIZE = 20;
 
@@ -36,6 +37,8 @@ export default function ConnectionLogsPage() {
   // Server-side: search + page
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+
+  const { data: logInfo } = useConnectionLogInfo();
 
   // Client-side filters on current page items
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
@@ -104,10 +107,10 @@ export default function ConnectionLogsPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "ทั้งหมด", value: stats.total, color: "text-foreground" },
-          { label: "สำเร็จ (หน้านี้)", value: stats.success, color: "text-green-600 dark:text-green-400" },
-          { label: "ล้มเหลว (หน้านี้)", value: stats.error, color: "text-destructive" },
-          { label: "Latency เฉลี่ย", value: `${stats.avgLatency} ms`, color: "text-foreground" },
+          { label: "ทั้งหมด", value: logInfo?.total_connections ?? 0, color: "text-foreground" },
+          { label: "สำเร็จ", value: logInfo?.successful_connections ?? 0, color: "text-green-600 dark:text-green-400" },
+          { label: "ล้มเหลว", value: logInfo?.failed_connections ?? 0, color: "text-destructive" },
+          { label: "Latency เฉลี่ย (24 ชม.)", value: `${logInfo?.average_latency_ms ?? 0} ms`, color: "text-foreground" },
         ].map((s) => (
           <div key={s.label} className="border rounded-lg p-3 bg-card">
             <p className="text-xs text-muted-foreground">{s.label}</p>
