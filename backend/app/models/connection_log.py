@@ -14,6 +14,7 @@ class ConnectionLog(models.Model):
         "models.Agency",
         related_name="connection_logs",
         on_delete=fields.CASCADE,
+        null=True,
     )
     action = fields.CharField(max_length=50, default="test")   # test | query
     connection_type = fields.CharField(max_length=20)          # MCP | API | A2A

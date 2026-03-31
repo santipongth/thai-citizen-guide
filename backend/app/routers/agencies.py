@@ -183,50 +183,6 @@ async def increment_calls(agency_id: uuid.UUID):
 
 
 # ---------------------------------------------------------------------------
-# Connection logs
-# ---------------------------------------------------------------------------
-
-class ConnectionLogResponse(BaseModel):
-    id: str
-    agency_id: str
-    action: str
-    connection_type: str
-    status: str
-    latency_ms: int
-    detail: str
-    created_at: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-@router.get(
-    "/{agency_id}/connection-logs",
-    response_model=list[ConnectionLogResponse],
-    summary="List connection logs for an agency",
-)
-async def list_connection_logs(agency_id: uuid.UUID, limit: int = Query(50, le=200), _: User = Depends(require_admin)):
-    try:
-        agency = await Agency.get(id=agency_id)
-    except DoesNotExist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
-
-    logs = await ConnectionLog.filter(agency=agency).limit(limit)
-    return [
-        ConnectionLogResponse(
-            id=str(log.id),
-            agency_id=str(agency_id),
-            action=log.action,
-            connection_type=log.connection_type,
-            status=log.status,
-            latency_ms=log.latency_ms,
-            detail=log.detail,
-            created_at=log.created_at.isoformat(),
-        )
-        for log in logs
-    ]
-
-
-# ---------------------------------------------------------------------------
 # Test connection — response model
 # ---------------------------------------------------------------------------
 

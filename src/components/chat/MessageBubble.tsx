@@ -1,20 +1,12 @@
 import { useState } from "react";
 import { ThumbsUp, ThumbsDown, Brain, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import type { ChatMessage } from "@/data/mockData";
-import { AgentStepDisplay } from "./AgentStepDisplay";
+import { cn, parseThinkContent } from "@/lib/utils";
+import type { ChatMessage } from "@/types";
+// import { AgentStepDisplay } from "./AgentStepDisplay";
 import { FeedbackDialog } from "./FeedbackDialog";
 import ReactMarkdown from "react-markdown";
 import { AppLogo } from "../ui/AppLogo";
-
-function parseThinkContent(content: string): { thinking: string; answer: string } {
-  const match = content.match(/^<think>([\s\S]*?)<\/think>([\s\S]*)$/);
-  if (match) {
-    return { thinking: match[1].trim(), answer: match[2].trim() };
-  }
-  return { thinking: '', answer: content };
-}
 
 export function MessageBubble({ message, onRate }: { message: ChatMessage; onRate?: (id: string, rating: 'up' | 'down', feedbackText?: string) => void }) {
   const [showFeedback, setShowFeedback] = useState(false);

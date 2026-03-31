@@ -26,6 +26,7 @@ from pydantic import BaseModel
 from app.config import settings
 from app.models.agency import Agency
 from app.models.conversation import Conversation, Message
+from app.models.connection_log import ConnectionLog
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.auth.dependencies import get_current_user_optional
@@ -474,6 +475,15 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
         )
 
     if resp.status_code != 200:
+        await ConnectionLog.create(
+            agency=None,
+            action="query",
+            connection_type="A2A",
+            status="error",
+            latency_ms=int((time.time() - start) * 1000),
+            detail=f"HTTP {resp.status_code}: {resp.text}",
+        )
+
         return {"success": False, "error": resp.text}
         
     response_time = int((time.time() - start) * 1000)
@@ -520,6 +530,15 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
         response_time=response_time,
         agency_ids=[],
         errors=errors,
+    )
+
+    await ConnectionLog.create(
+        agency=None,
+        action="query",
+        connection_type="A2A",
+        status="success" if not errors else "error",
+        latency_ms=response_time,
+        detail=f"query: {query}\n\nanswer: {answer}\n\nerrors: {errors}",
     )
 
     return {

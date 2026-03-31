@@ -1,15 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/apiClient';
-
-export interface ConversationMessage {
-  id: string;
-  role: string;
-  content: string;
-  agent_steps: any;
-  sources: any;
-  rating: string | null;
-  created_at: string;
-}
+import type { ConversationMessage } from '@/types/conversation';
 
 async function fetchConversationMessages(conversationId: string): Promise<ConversationMessage[]> {
   const data = await api.get<ConversationMessage[]>(
