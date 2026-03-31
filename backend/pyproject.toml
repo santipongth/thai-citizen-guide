@@ -1,0 +1,62 @@
+[project]
+name = "ai-chatbot-backend"
+version = "1.0.0"
+description = "AI Chatbot Portal Backend — FastAPI + Tortoise ORM + FastMCP"
+requires-python = ">=3.11"
+dependencies = [
+    # Web framework
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    # Async HTTP client
+    "httpx>=0.27.0",
+    # YAML parsing for OpenAPI specs
+    "pyyaml>=6.0.0",
+    # ORM + PostgreSQL async driver
+    "tortoise-orm[asyncpg]>=0.21.0",
+    # Migrations
+    "aerich>=0.7.2",
+    # MCP server
+    "fastmcp>=2.3.0",
+    # Settings / env
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
+    # Auth — JWT + password hashing
+    "python-jose[cryptography]>=3.3.0",
+    "email-validator>=2.1.0",   # pydantic EmailStr support
+    "bcrypt>=5.0.0",
+    "langchain-openai>=1.1.12",
+    "langgraph>=1.1.3",
+    "langchain>=1.2.13",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "httpx>=0.27.0",   # also used as AsyncClient test transport
+]
+
+#[project.scripts]
+#serve = "uvicorn app.main:app --reload"
+
+# ---------------------------------------------------------------------------
+# uv
+# ---------------------------------------------------------------------------
+[tool.uv]
+package = false          # not a library — no build step needed
+
+# ---------------------------------------------------------------------------
+# aerich (Tortoise ORM migrations)
+# ---------------------------------------------------------------------------
+[tool.aerich]
+tortoise_orm = "app.config.TORTOISE_ORM"
+location = "./migrations"
+src_folder = "./."
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

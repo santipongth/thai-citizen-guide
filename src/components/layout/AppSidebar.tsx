@@ -1,4 +1,4 @@
-import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut } from "lucide-react";
+import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Activity } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -15,22 +15,24 @@ import { useAgencies } from "@/hooks/useAgencies";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AppLogo } from "@/components/ui/AppLogo";
 
 const navItems = [
-  { title: "แชท", url: "/", icon: MessageSquare },
+  { title: "แชท", url: "/chat", icon: MessageSquare },
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "จัดการหน่วยงาน", url: "/agencies", icon: Building2 },
   { title: "ประวัติการสนทนา", url: "/history", icon: History },
+  { title: "ประวัติการเชื่อมต่อ", url: "/connection-logs", icon: Activity },
   { title: "Architecture", url: "/architecture", icon: Network },
 ];
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const { data: agencies = [] } = useAgencies();
-  const { profile, user, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const collapsed = state === "collapsed";
 
-  const initials = (profile?.displayName || user?.email || "U")
+  const initials = (user?.displayName || user?.email || "U")
     .split(" ")
     .map((w) => w[0])
     .join("")
@@ -44,18 +46,14 @@ export function AppSidebar() {
         <div className="p-4 border-b border-sidebar-border">
           {!collapsed ? (
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg gov-gradient flex items-center justify-center text-white font-bold text-sm">
-                AI
-              </div>
+              <AppLogo className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" />
               <div>
                 <p className="font-semibold text-sm text-sidebar-foreground">AI Portal กลาง</p>
                 <p className="text-[10px] text-muted-foreground">ระบบบูรณาการข้อมูล</p>
               </div>
             </div>
           ) : (
-            <div className="w-8 h-8 rounded-lg gov-gradient flex items-center justify-center text-white font-bold text-sm mx-auto">
-              AI
-            </div>
+            <AppLogo className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" />
           )}
         </div>
 
@@ -69,7 +67,7 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild tooltip={item.title}>
                     <NavLink
                       to={item.url}
-                      end={item.url === "/"}
+                      end={item.url === "/chat"}
                       className="flex items-center gap-2 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
                       activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
                     >
@@ -111,7 +109,7 @@ export function AppSidebar() {
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-sidebar-foreground truncate">
-                  {profile?.displayName || user?.email}
+                  {user?.displayName || user?.email}
                 </p>
                 <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
               </div>

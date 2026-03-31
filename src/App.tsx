@@ -13,6 +13,7 @@ import AgenciesPage from "./pages/AgenciesPage";
 import AgencyDetailPage from "./pages/AgencyDetailPage";
 import HistoryPage from "./pages/HistoryPage";
 import ArchitecturePage from "./pages/ArchitecturePage";
+import ConnectionLogsPage from "./pages/ConnectionLogsPage";
 import PublicPortal from "./pages/PublicPortal";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
@@ -32,7 +33,7 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               {/* Public routes */}
-              <Route path="/public" element={<PublicPortal />} />
+              <Route path="/" element={<PublicPortal />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -40,11 +41,12 @@ const App = () => (
 
               {/* Protected admin routes */}
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-                <Route path="/" element={<ChatPage />} />
+                <Route path="/chat" element={<ChatPage />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/agencies" element={<AgenciesPage />} />
                 <Route path="/agencies/:id" element={<AgencyDetailPage />} />
                 <Route path="/history" element={<HistoryPage />} />
+                <Route path="/connection-logs" element={<ConnectionLogsPage />} />
                 <Route path="/architecture" element={<ArchitecturePage />} />
               </Route>
 

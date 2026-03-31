@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/lib/apiClient';
 import { conversationHistory as fallback } from '@/data/mockData';
 
 export interface HistoryItem {
@@ -24,11 +24,13 @@ export async function fetchChatHistory(
   filterAgency?: string
 ): Promise<HistoryItem[]> {
   try {
-    const { data, error } = await supabase.functions.invoke('chat-history', {
-      body: { search: search || '', filterAgency: filterAgency || '' },
-    });
-    if (error) throw error;
-    const res = data as HistoryApiResponse;
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (filterAgency) params.set('filterAgency', filterAgency);
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const res = await api.get<HistoryApiResponse>(`/api/v1/conversations${query}`);
+
     if (res.success) return res.data;
     throw new Error('API unsuccessful');
   } catch {
@@ -47,19 +49,30 @@ export interface SaveConversationInput {
     id?: string;
     role: 'user' | 'assistant';
     content: string;
-    agentSteps?: any[];
-    sources?: any[];
+    agentSteps?: unknown[];
+    sources?: unknown[];
     rating?: string | null;
   }[];
 }
 
 export async function saveConversation(input: SaveConversationInput): Promise<string | null> {
   try {
-    const { data, error } = await supabase.functions.invoke('save-conversation', {
-      body: input,
+    const res = await api.post<{ success: boolean; conversationId: string }>('/api/v1/conversations', {
+      title: input.title,
+      preview: input.preview,
+      agencies: input.agencies,
+      status: input.status,
+      response_time: input.responseTime,
+      messages: input.messages.map((m) => ({
+        id: m.id ?? undefined,
+        role: m.role,
+        content: m.content,
+        agent_steps: m.agentSteps ?? [],
+        sources: m.sources ?? [],
+        rating: m.rating ?? null,
+      })),
     });
-    if (error) throw error;
-    return data?.conversationId || null;
+    return res.conversationId ?? null;
   } catch (err) {
     console.warn('Failed to save conversation:', err);
     return null;
@@ -68,11 +81,7 @@ export async function saveConversation(input: SaveConversationInput): Promise<st
 
 export async function deleteConversation(id: string): Promise<boolean> {
   try {
-    const { error } = await supabase
-      .from('conversations' as any)
-      .delete()
-      .eq('id', id);
-    if (error) throw error;
+    await api.delete(`/api/v1/conversations/${id}`);
     return true;
   } catch (err) {
     console.warn('Failed to delete conversation:', err);

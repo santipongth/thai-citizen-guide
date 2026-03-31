@@ -1,25 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-
-export interface ConversationMessage {
-  id: string;
-  role: string;
-  content: string;
-  agent_steps: any;
-  sources: any;
-  rating: string | null;
-  created_at: string;
-}
+import { api } from '@/lib/apiClient';
+import type { ConversationMessage } from '@/types/conversation';
 
 async function fetchConversationMessages(conversationId: string): Promise<ConversationMessage[]> {
-  const { data, error } = await supabase
-    .from('messages')
-    .select('*')
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true });
-
-  if (error) throw error;
-  return (data || []) as ConversationMessage[];
+  const data = await api.get<ConversationMessage[]>(
+    `/api/v1/conversations/${conversationId}/messages`
+  );
+  return data ?? [];
 }
 
 export function useConversationMessages(conversationId: string | null) {

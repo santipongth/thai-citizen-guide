@@ -4,8 +4,14 @@ import { Badge } from "@/components/ui/badge";
 interface TestStep {
   step: number;
   label: string;
-  status: string;
-  time: number;
+  status: string;  // "done" | "error"
+  time: number;    // ms
+}
+
+interface AgentCardInfo {
+  name: string;
+  skills: string[];
+  capabilities?: Record<string, unknown>;
 }
 
 export interface TestResult {
@@ -14,14 +20,20 @@ export interface TestResult {
   version: string;
   steps: TestStep[];
   latency: string;
-  capabilities?: string[];
-  agentCard?: { name: string; skills: string[] };
-  endpoints?: string[];
-  statusCode?: number | null;
-  statusText?: string;
-  server?: string;
-  contentType?: string;
   error?: string;
+
+  // REST-only
+  status_code?: number | null;
+  status_text?: string;
+  server?: string;
+  content_type?: string;
+
+  // MCP-only
+  capabilities?: string[];
+  server_info?: Record<string, unknown>;
+
+  // A2A-only
+  agent_card?: AgentCardInfo;
 }
 
 interface Props {
@@ -62,7 +74,7 @@ export function ConnectionTestResult({ result, loading }: Props) {
       <div className="flex items-center gap-2 font-medium text-foreground">
         {icon}
         <span className="flex-1">{title}</span>
-        {result?.statusCode && <StatusCodeBadge code={result.statusCode} />}
+        {result?.status_code && <StatusCodeBadge code={result.status_code} />}
       </div>
 
       <div className="space-y-1.5 pl-6">
@@ -84,18 +96,25 @@ export function ConnectionTestResult({ result, loading }: Props) {
       {result && !loading && (
         <div className="pl-6 text-xs text-muted-foreground space-y-1">
           <p>Latency: <span className="font-medium text-foreground">{result.latency}</span></p>
-          {result.statusCode && (
-            <p>Status: <span className="font-medium text-foreground">{result.statusCode} {result.statusText}</span></p>
+          {result.status_code && (
+            <p>Status: <span className="font-medium text-foreground">{result.status_code} {result.status_text}</span></p>
           )}
           {result.server && result.server !== 'unknown' && (
             <p>Server: <span className="font-medium text-foreground">{result.server}</span></p>
           )}
-          {result.contentType && result.contentType !== 'unknown' && (
-            <p>Content-Type: <span className="font-medium text-foreground">{result.contentType}</span></p>
+          {result.content_type && result.content_type !== 'unknown' && (
+            <p>Content-Type: <span className="font-medium text-foreground">{result.content_type}</span></p>
           )}
-          {result.capabilities && <p>Capabilities: {result.capabilities.join(', ')}</p>}
-          {result.agentCard && <p>Agent: {result.agentCard.name} — Skills: {result.agentCard.skills.join(', ')}</p>}
-          {result.endpoints && <p>Endpoints: {result.endpoints.join(', ')}</p>}
+          {result.capabilities && (
+            <p>Capabilities: <span className="font-medium text-foreground">{result.capabilities.join(', ')}</span></p>
+          )}
+          {result.agent_card && (
+            <p>Agent: <span className="font-medium text-foreground">{result.agent_card.name}</span>
+              {result.agent_card.skills.length > 0 && (
+                <> — Skills: <span className="font-medium text-foreground">{result.agent_card.skills.join(', ')}</span></>
+              )}
+            </p>
+          )}
         </div>
       )}
     </div>

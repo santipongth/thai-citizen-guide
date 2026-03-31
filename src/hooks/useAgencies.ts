@@ -1,45 +1,38 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { agencies as mockAgencies } from '@/data/mockData';
+import { api } from '@/lib/apiClient';
+// import { agencies as mockAgencies } from '@/data/mockData';
 import type { Agency } from '@/types';
 import type { AgencyRow } from '@/types/agency';
 import { mapRowToAgency } from '@/types/agency';
-import { useEffect } from 'react';
+import type { TestResult } from '@/components/agencies/ConnectionTestResult';
+
+// ---------------------------------------------------------------------------
+// Fetch helpers
+// ---------------------------------------------------------------------------
+
+const emptyAgencies: Agency[] = [];
 
 async function fetchAgencies(): Promise<Agency[]> {
-  const { data, error } = await supabase
-    .from('agencies' as any)
-    .select('*')
-    .order('created_at', { ascending: true });
-
-  if (error) {
-    console.warn('Failed to fetch agencies from DB, using fallback', error.message);
-    return mockAgencies;
+  try {
+    const res = await api.get<{ data: AgencyRow[]; total: number }>('/api/v1/agencies');
+    if (!res.data || res.data.length === 0) return emptyAgencies;
+    return res.data.map(mapRowToAgency);
+  } catch (err) {
+    console.warn('Failed to fetch agencies from backend, using fallback', err);
+    return emptyAgencies;
   }
-
-  if (!data || data.length === 0) return mockAgencies;
-  return (data as unknown as AgencyRow[]).map(mapRowToAgency);
 }
 
+// ---------------------------------------------------------------------------
+// Hooks
+// ---------------------------------------------------------------------------
+
 export function useAgencies() {
-  const queryClient = useQueryClient();
-
-  // Realtime subscription
-  useEffect(() => {
-    const channel = supabase
-      .channel('agencies-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agencies' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['agencies'] });
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [queryClient]);
-
   return useQuery({
     queryKey: ['agencies'],
     queryFn: fetchAgencies,
     staleTime: 30_000,
+    refetchInterval: 60_000,   // poll every 60 s (replaces Supabase realtime)
   });
 }
 
@@ -47,31 +40,27 @@ export function useCreateAgency() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (agency: Partial<Agency>) => {
-      const { data, error } = await supabase.functions.invoke('agency-manage', {
-        method: 'POST',
-        body: {
-          name: agency.name,
-          short_name: agency.shortName,
-          logo: agency.logo,
-          connection_type: agency.connectionType,
-          status: agency.status,
-          description: agency.description,
-          data_scope: agency.dataScope,
-          color: agency.color,
-          endpoint_url: agency.endpointUrl,
-          api_key_name: agency.apiKeyName,
-          auth_method: agency.authMethod,
-          auth_header: agency.authHeader,
-          base_path: agency.basePath,
-          rate_limit_rpm: agency.rateLimitRpm,
-          request_format: agency.requestFormat,
-          api_endpoints: agency.apiEndpoints,
-          response_schema: agency.responseSchema,
-          api_spec_raw: agency.apiSpecRaw,
-        },
+      return api.post('/api/v1/agencies', {
+        name: agency.name,
+        short_name: agency.shortName,
+        logo: agency.logo,
+        connection_type: agency.connectionType,
+        status: agency.status,
+        description: agency.description,
+        data_scope: agency.dataScope ?? [],
+        color: agency.color,
+        endpoint_url: agency.endpointUrl,
+        api_key_name: agency.apiKeyName,
+        auth_method: agency.authMethod,
+        auth_header: agency.authHeader,
+        base_path: agency.basePath,
+        rate_limit_rpm: agency.rateLimitRpm,
+        request_format: agency.requestFormat,
+        api_endpoints: agency.apiEndpoints ?? [],
+        response_schema: agency.responseSchema ?? [],
+        api_spec_raw: agency.apiSpecRaw,
+        expected_payload: agency.expectedPayload ?? null,
       });
-      if (error) throw new Error(error.message);
-      return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agencies'] }),
   });
@@ -81,32 +70,27 @@ export function useUpdateAgency() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (agency: Partial<Agency> & { id: string }) => {
-      const { data, error } = await supabase.functions.invoke('agency-manage', {
-        method: 'PUT',
-        body: {
-          id: agency.id,
-          name: agency.name,
-          short_name: agency.shortName,
-          logo: agency.logo,
-          connection_type: agency.connectionType,
-          status: agency.status,
-          description: agency.description,
-          data_scope: agency.dataScope,
-          color: agency.color,
-          endpoint_url: agency.endpointUrl,
-          api_key_name: agency.apiKeyName,
-          auth_method: agency.authMethod,
-          auth_header: agency.authHeader,
-          base_path: agency.basePath,
-          rate_limit_rpm: agency.rateLimitRpm,
-          request_format: agency.requestFormat,
-           api_endpoints: agency.apiEndpoints,
-           response_schema: agency.responseSchema,
-           api_spec_raw: agency.apiSpecRaw,
-        },
+      return api.patch(`/api/v1/agencies/${agency.id}`, {
+        name: agency.name,
+        short_name: agency.shortName,
+        logo: agency.logo,
+        connection_type: agency.connectionType,
+        status: agency.status,
+        description: agency.description,
+        data_scope: agency.dataScope,
+        color: agency.color,
+        endpoint_url: agency.endpointUrl,
+        api_key_name: agency.apiKeyName,
+        auth_method: agency.authMethod,
+        auth_header: agency.authHeader,
+        base_path: agency.basePath,
+        rate_limit_rpm: agency.rateLimitRpm,
+        request_format: agency.requestFormat,
+        api_endpoints: agency.apiEndpoints,
+        response_schema: agency.responseSchema,
+        api_spec_raw: agency.apiSpecRaw,
+        expected_payload: agency.expectedPayload,
       });
-      if (error) throw new Error(error.message);
-      return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agencies'] }),
   });
@@ -116,30 +100,23 @@ export function useDeleteAgency() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data, error } = await supabase.functions.invoke('agency-manage', {
-        method: 'DELETE',
-        body: { id },
-      });
-      if (error) throw new Error(error.message);
-      return data;
+      return api.delete(`/api/v1/agencies/${id}`);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agencies'] }),
   });
 }
 
 export function useTestConnection() {
-  return useMutation({
-    mutationFn: async (params: { connectionType: string; endpointUrl: string }) => {
-      const { data, error } = await supabase.functions.invoke('agency-manage', {
-        method: 'POST',
-        body: {
-          action: 'test',
-          connection_type: params.connectionType,
-          endpoint_url: params.endpointUrl,
-        },
-      });
-      if (error) throw new Error(error.message);
-      return data;
+  const qc = useQueryClient();
+
+  return useMutation<TestResult, Error, { agencyId: string }>({
+    mutationFn: async ({ agencyId }) => {
+      return await api.get<TestResult>(`/api/v1/agencies/${agencyId}/test`);
+    },
+    onSuccess: (_data, variables) => {
+      // Refresh the connection-logs list for this ag ency so the log panel
+      // shows the new entry without a manual reload.
+      qc.invalidateQueries({ queryKey: ['connection-logs', variables.agencyId] });
     },
   });
 }

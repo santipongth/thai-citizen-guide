@@ -1,17 +1,18 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { api } from "@/lib/apiClient";
+import { useAuth, type AuthUser } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { LogIn } from "lucide-react";
+import { AppLogo } from "@/components/ui/AppLogo";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, setAuth } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -19,35 +20,39 @@ export default function LoginPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (!isLoading && user) {
-      navigate("/", { replace: true });
+      navigate("/chat", { replace: true });
     }
   }, [user, isLoading, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      const res = await api.post<{ access_token: string; user: AuthUser }>("/api/v1/auth/login", {
+        email,
+        password,
+      });
+      setAuth(res.access_token, res.user);
       toast.success("เข้าสู่ระบบสำเร็จ");
-      // navigate will happen via useEffect when auth state updates
+      navigate("/chat", { replace: true });
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "เข้าสู่ระบบไม่สำเร็จ");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Don't show login form if already authenticated
   if (!isLoading && user) return null;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-xl gov-gradient flex items-center justify-center text-white font-bold text-lg mx-auto">
-            AI
-          </div>
+          <AppLogo className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg mx-auto" />
           <CardTitle className="text-xl">เข้าสู่ระบบ Admin</CardTitle>
-          <p className="text-sm text-muted-foreground">AI Portal กลาง — ระบบบูรณาการข้อมูลหน่วยงานภาครัฐ</p>
+          <p className="text-sm text-muted-foreground">
+            AI Portal กลาง — ระบบบูรณาการข้อมูลหน่วยงานภาครัฐ
+          </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">

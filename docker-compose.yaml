@@ -1,0 +1,60 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-chatbot}
+      POSTGRES_USER:     ${POSTGRES_USER:-chatbot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chatbot_secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - chatbot-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chatbot} -d ${POSTGRES_DB:-chatbot}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL:        postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@postgres:5432/${POSTGRES_DB:-chatbot}
+      JWT_SECRET:          ${JWT_SECRET:-change-me-in-production-use-a-long-random-string}
+      JWT_ALGORITHM:       HS256
+      JWT_EXPIRE_MINUTES:  ${JWT_EXPIRE_MINUTES:-10080}
+      DEBUG:               ${DEBUG:-false}
+      PARSE_SPEC_URL:      ${PARSE_SPEC_URL:-http://thaillm.or.th/api/openthaigpt/v1/chat/completions}
+      PARSE_SPEC_API_KEY:  ${PARSE_SPEC_API_KEY:-}
+      PARSE_SPEC_TIMEOUT:  ${PARSE_SPEC_TIMEOUT:-60}
+      PARSE_SPEC_LLM_MODEL: ${PARSE_SPEC_LLM_MODEL:-/model}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - chatbot-network
+
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+    restart: unless-stopped
+    ports:
+      - "${PORT:-80}:80"
+    depends_on:
+      - backend
+    networks:
+      - chatbot-network
+
+volumes:
+  postgres_data:
+
+networks:
+  chatbot-network:

@@ -1,3 +1,20 @@
+npx @modelcontextprotocol/inspector
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Welcome to your Lovable project
 
 ## Project info
