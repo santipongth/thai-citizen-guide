@@ -48,7 +48,7 @@ export function MessageBubble({ message, onRate }: { message: ChatMessage; onRat
             ? "bg-primary text-primary-foreground rounded-tr-sm"
             : "bg-card border border-border rounded-tl-sm"
         )}>
-          {!isUser && message.agentSteps && <AgentStepDisplay steps={message.agentSteps} visibleCount={message.agentSteps.length + 1} />}
+          {/* {!isUser && message.agentSteps && <AgentStepDisplay steps={message.agentSteps} visibleCount={message.agentSteps.length + 1} />} */}
           {!isUser && thinking && (
             <div className="mb-2 rounded-lg border border-border bg-muted/40 overflow-hidden">
               <button

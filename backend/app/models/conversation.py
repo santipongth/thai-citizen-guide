@@ -16,6 +16,7 @@ class Conversation(Model):
     status = fields.CharField(max_length=20, default="success")   # success | failed
     message_count = fields.IntField(default=0)
     response_time = fields.CharField(max_length=50, null=True)
+    external_session_id = fields.CharField(max_length=100, null=True) # for tracking sessions with external APIs
 
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
@@ -55,6 +56,7 @@ class Message(Model):
     response_time = fields.IntField(null=True)        # in seconds
     category = fields.CharField(max_length=50, null=True) # สอบถามข้อมูล | ตรวจสอบสถานะ | ขั้นตอนดำเนินการ | กฎหมาย/ระเบียบ
     agency_ids = fields.JSONField(default=list, null=True)     # list of agency ids involved in this message
+    errors = fields.JSONField(default=list, null=True)       # list of error messages if any
 
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
