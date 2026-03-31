@@ -26,6 +26,7 @@ from pydantic import BaseModel
 from app.config import settings
 from app.models.agency import Agency
 from app.models.conversation import Conversation, Message
+from app.models.connection_log import ConnectionLog
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.auth.dependencies import get_current_user_optional
@@ -363,8 +364,8 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 
-@router.post("", summary="Send a query and get a synthesised AI response")
-async def chat(body: ChatRequest, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
+@router.post("/internal", summary="Send a query and get a synthesised AI response")
+async def chat_internal(body: ChatRequest, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
     start = time.time()
     query = body.query.strip()
 
@@ -451,3 +452,109 @@ async def chat(body: ChatRequest, user: User | None = Depends(get_current_user_o
         "conversation_id": conversation_id,
         "responseTime": response_time,
     }
+
+@router.post("/external", summary="Send a query and get a synthesised AI response")
+async def chat_external(body: ChatRequest, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
+
+    start = time.time()
+    
+    query = body.query.strip()
+    conversation_id = body.conversation_id or str(generate_uuid())
+    
+    if body.conversation_id:
+        conv = await Conversation.get(id=conversation_id)
+
+    if not query:
+        return {"success": False, "error": "Missing query"}
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(
+            "http://185.84.160.55:10540/v1/chat",
+            json={"query": query, "mcp_endpoint_url": "http://185.84.161.24/sse"},
+            headers={"Content-Type": "application/json"},
+        )
+
+    if resp.status_code != 200:
+        await ConnectionLog.create(
+            agency=None,
+            action="query",
+            connection_type="A2A",
+            status="error",
+            latency_ms=int((time.time() - start) * 1000),
+            detail=f"HTTP {resp.status_code}: {resp.text}",
+        )
+
+        return {"success": False, "error": resp.text}
+        
+    response_time = int((time.time() - start) * 1000)
+
+    raw_data = resp.json()
+    print(f"External chat response: {raw_data}")
+
+    data = raw_data.get("data", {})
+
+    answer = data.get("answer", "").strip()
+    errors = data.get("errors", [])
+
+    if not body.conversation_id:
+        conv = await Conversation.create(
+            id=conversation_id,
+            title=query[:50],
+            preview=query[:100],
+            agencies=[],
+            status='success',
+            message_count=len(answer),
+            response_time=response_time,
+            user_id=user.id if user else None,
+            external_session_id=data.get("session_id", None),
+        )
+    else:
+        conv.message_count += len(answer)
+        await conv.save()
+
+    await Message.create(
+        conversation_id=conversation_id,
+        role='user',
+        content=query,
+        agent_steps=[],
+        sources=[],
+        category=None,
+    )
+    
+    response_msg = await Message.create(
+        conversation_id=conversation_id,
+        role='assistant',
+        content=answer,
+        agent_steps=[],
+        sources=[],
+        response_time=response_time,
+        agency_ids=[],
+        errors=errors,
+    )
+
+    await ConnectionLog.create(
+        agency=None,
+        action="query",
+        connection_type="A2A",
+        status="success" if not errors else "error",
+        latency_ms=response_time,
+        detail=f"query: {query}\n\nanswer: {answer}\n\nerrors: {errors}",
+    )
+
+    return {
+        "success": True,
+        "data": {
+            "message_id": response_msg.id,
+            "answer": answer,
+            "references": data.get("references", []),
+            "agentSteps": data.get("agentSteps", []),
+            "agencies": data.get("agencies", []),
+            "confidence": data.get("confidence", 0.0),
+        },
+        "conversation_id": conversation_id,
+        "responseTime": response_time,
+    }
+
+@router.post("", summary="Send a query and get a synthesised AI response")
+async def chat(body: ChatRequest, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
+    return await chat_external(body, user)

@@ -1,9 +1,9 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, User, Bot } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useConversationMessages } from '@/hooks/useConversationMessages';
 import type { HistoryItem } from '@/services/historyApi';
-import ReactMarkdown from 'react-markdown';
+import { MessageItem } from './MessageItem';
 
 interface ConversationDetailDialogProps {
   conversation: HistoryItem | null;
@@ -47,38 +47,8 @@ export function ConversationDetailDialog({ conversation, open, onOpenChange }: C
             </p>
           )}
 
-          {!isLoading && messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              {msg.role === 'assistant' && (
-                <div className="shrink-0 w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Bot className="h-4 w-4 text-primary" />
-                </div>
-              )}
-              <div
-                className={`rounded-lg px-3 py-2 max-w-[80%] text-sm ${
-                  msg.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-foreground'
-                }`}
-              >
-                {msg.role === 'assistant' ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:my-1 [&>ul]:my-1">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
-                  </div>
-                ) : (
-                  <p>{msg.content}</p>
-                )}
-              </div>
-              {msg.role === 'user' && (
-                <div className="shrink-0 w-7 h-7 rounded-full bg-primary flex items-center justify-center">
-                  <User className="h-4 w-4 text-primary-foreground" />
-                </div>
-              )}
-            </div>
-          ))}
+          {!isLoading && messages.map((msg) => <MessageItem key={msg.id} msg={msg} />)}
+
         </div>
       </DialogContent>
     </Dialog>

@@ -13,6 +13,7 @@ import AgenciesPage from "./pages/AgenciesPage";
 import AgencyDetailPage from "./pages/AgencyDetailPage";
 import HistoryPage from "./pages/HistoryPage";
 import ArchitecturePage from "./pages/ArchitecturePage";
+import ConnectionLogsPage from "./pages/ConnectionLogsPage";
 import PublicPortal from "./pages/PublicPortal";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
@@ -45,6 +46,7 @@ const App = () => (
                 <Route path="/agencies" element={<AgenciesPage />} />
                 <Route path="/agencies/:id" element={<AgencyDetailPage />} />
                 <Route path="/history" element={<HistoryPage />} />
+                <Route path="/connection-logs" element={<ConnectionLogsPage />} />
                 <Route path="/architecture" element={<ArchitecturePage />} />
               </Route>
 
