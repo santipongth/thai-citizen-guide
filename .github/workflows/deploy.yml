@@ -2,6 +2,7 @@ name: Deploy on Commit Message
 
 on:
   push:
+  workflow_dispatch:
 
 jobs:
   check-deploy:
