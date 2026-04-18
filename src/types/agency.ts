@@ -4,6 +4,11 @@ export interface ApiEndpoint {
   description: string;
 }
 
+export interface ApiHeader {
+  name: string;
+  value: string;
+}
+
 export interface ResponseField {
   field: string;
   type: string;
@@ -35,6 +40,7 @@ export interface Agency {
   expectedPayload?: Record<string, unknown> | null;
   createdAt?: string;
   updatedAt?: string;
+  apiHeaders?: ApiHeader[];
 }
 
 // DB row shape (snake_case) → mapped to Agency (camelCase)
@@ -62,6 +68,7 @@ export interface AgencyRow {
   expected_payload: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
+  api_headers: ApiHeader[];
 }
 
 export function mapRowToAgency(row: AgencyRow): Agency {
@@ -89,6 +96,7 @@ export function mapRowToAgency(row: AgencyRow): Agency {
     expectedPayload: row.expected_payload,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    apiHeaders: row.api_headers ?? [],
   };
 }
 

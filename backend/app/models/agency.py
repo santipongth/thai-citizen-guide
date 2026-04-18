@@ -55,6 +55,7 @@ class Agency(Model):
     api_spec_raw = fields.TextField(null=True)
 
     expected_payload = fields.JSONField(null=True)
+    api_headers = fields.JSONField(null=True, default=list)              # list[ApiHeader]
 
     # Metrics
     total_calls = fields.IntField(default=0)

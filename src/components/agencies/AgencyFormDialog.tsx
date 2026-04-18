@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { X, Plus, Upload, Loader2, Trash2 } from "lucide-react";
 import { api } from "@/lib/apiClient";
 import { toast } from "sonner";
-import type { Agency, ApiEndpoint, ResponseField } from "@/types/agency";
+import type { Agency, ApiEndpoint, ResponseField, ApiHeader } from "@/types/agency";
 import { set } from "date-fns";
 
 const protocolInfo: Record<string, string> = {
@@ -51,6 +51,7 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
   const [parsedPayload, setParsedPayload] = useState<Record<string, unknown> | null>(null);
   const [parsing, setParsing] = useState(false);
   const [apiSpecRaw, setApiSpecRaw] = useState<string>("");
+  const [apiHeaders, setApiHeaders] = useState<ApiHeader[]>([]);
 
   useEffect(() => {
     if (agency) {
@@ -73,6 +74,7 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
       setExpectedPayload(agency.expectedPayload ? JSON.stringify(agency.expectedPayload, null, 2) : "");
       setExpectedPayloadError(false);
       setApiSpecRaw(agency.apiSpecRaw || ""); setParsedPayload(agency.expectedPayload || null);
+      setApiHeaders(agency.apiHeaders || []);
     } else {
       setName(""); setShortName(""); setLogo("🏢"); setDescription("");
       setConnectionType("API"); setEndpointUrl(""); setColor("hsl(213 70% 45%)");
@@ -80,7 +82,7 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
       setAuthMethod("api_key"); setAuthHeader(""); setBasePath("");
       setRateLimitRpm(""); setRequestFormat("json"); setApiEndpoints([]);
       setResponseSchema([]); setExpectedPayload(""); setExpectedPayloadError(false);
-      setApiSpecRaw(""); setParsedPayload(null);
+      setApiSpecRaw(""); setParsedPayload(null); setApiHeaders([]);
     }
   }, [agency, open]);
 
@@ -102,6 +104,18 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
 
   const removeEndpoint = (index: number) => {
     setApiEndpoints(apiEndpoints.filter((_, i) => i !== index));
+  };
+
+  const addApiHeader = () => {
+    setApiHeaders([...apiHeaders, { name: "", value: "" }]);
+  };
+
+  const updateApiHeader = (index: number, field: keyof ApiHeader, value: string) => {
+    setApiHeaders(apiHeaders.map((h, i) => i === index ? { ...h, [field]: value } : h));
+  };
+
+  const removeApiHeader = (index: number) => {
+    setApiHeaders(apiHeaders.filter((_, i) => i !== index));
   };
 
   const handleSpecUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -178,6 +192,7 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
         responseSchema: responseSchema.filter(f => f.field),
         expectedPayload: parsedPayload,
         apiSpecRaw,
+        apiHeaders: apiHeaders.filter(h => h.name && h.value),
       } : {}),
     });
   };
@@ -238,6 +253,27 @@ export function AgencyFormDialog({ open, onOpenChange, agency, onSave, saving }:
           <div className="space-y-2">
             <Label>Endpoint URL</Label>
             <Input value={endpointUrl} onChange={(e) => setEndpointUrl(e.target.value)} placeholder="https://api.example.go.th/v1" />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Header</Label>
+              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={addApiHeader}>
+                <Plus className="h-3 w-3" /> เพิ่ม
+              </Button>
+            </div>
+            {apiHeaders.map((h, i) => (
+              <div key={i} className="flex gap-2 items-start">
+                <Input value={h.name} onChange={(e) => updateApiHeader(i, 'name', e.target.value)} placeholder="Name" className="h-8 text-xs flex-1" />
+                <Input value={h.value} onChange={(e) => updateApiHeader(i, 'value', e.target.value)} placeholder="Value" className="h-8 text-xs flex-1" />
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeApiHeader(i)}>
+                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                </Button>
+              </div>
+            ))}
+            {apiHeaders.length === 0 && (
+              <p className="text-[11px] text-muted-foreground py-2">ยังไม่มี header — กดเพิ่ม</p>
+            )}
           </div>
 
           {/* API-specific fields */}

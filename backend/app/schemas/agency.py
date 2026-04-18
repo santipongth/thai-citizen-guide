@@ -52,6 +52,7 @@ class AgencyBase(BaseModel):
     response_schema: list[ResponseField] = []
     api_spec_raw: str | None = None
     expected_payload: dict[str, Any] | None = None
+    api_headers: list[dict[str, Any]] | None = None
 
 
 class AgencyCreate(AgencyBase):
@@ -80,6 +81,7 @@ class AgencyUpdate(BaseModel):
     response_schema: list[ResponseField] | None = None
     api_spec_raw: str | None = None
     expected_payload: dict[str, Any] | None = None
+    api_headers: list[dict[str, Any]] | None = None
 
 
 class AgencyResponse(AgencyBase):

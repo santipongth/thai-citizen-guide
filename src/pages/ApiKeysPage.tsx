@@ -115,7 +115,7 @@ export default function ApiKeysPage() {
                     <p className="text-sm font-medium text-foreground truncate">{k.name}</p>
                     <div className="flex items-center gap-1.5 mt-1">
                       <code className="text-xs text-muted-foreground font-mono truncate">
-                        {maskKey(k.key)}
+                        {/* {maskKey(k.key)} */ k.key}
                       </code>
                       <button
                         onClick={() => copyKey(k.key)}

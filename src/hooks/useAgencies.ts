@@ -60,6 +60,7 @@ export function useCreateAgency() {
         response_schema: agency.responseSchema ?? [],
         api_spec_raw: agency.apiSpecRaw,
         expected_payload: agency.expectedPayload ?? null,
+        api_headers: agency.apiHeaders ?? [],
       });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agencies'] }),
@@ -90,6 +91,7 @@ export function useUpdateAgency() {
         response_schema: agency.responseSchema,
         api_spec_raw: agency.apiSpecRaw,
         expected_payload: agency.expectedPayload,
+        api_headers: agency.apiHeaders,
       });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agencies'] }),

@@ -100,10 +100,16 @@ async def _fetch_agencies(ctx: Context) -> dict:
         "data_scope",
         "endpoint_url",
         "expected_payload",
+        "api_headers",
     )
 
     for index, agency in enumerate(agencies):
-        pass
+        if agency["api_headers"] is None:
+            agencies[index]["api_headers"] = []
+        
+        for j, header in enumerate(agency["api_headers"]):
+            if header.get("name").lower() == "authorization" and not user_is_admin:
+                agencies[index]["api_headers"][j]["value"] = "REDACTED"
 
     return agencies
 
