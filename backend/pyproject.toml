@@ -2,7 +2,7 @@
 name = "ai-chatbot-backend"
 version = "1.0.0"
 description = "AI Chatbot Portal Backend — FastAPI + Tortoise ORM + FastMCP"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     # Web framework
     "fastapi>=0.115.0",

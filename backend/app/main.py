@@ -33,7 +33,7 @@ from starlette.responses import Response
 from app.config import settings
 from app.database import init_db, close_db
 from app.mcp.server import mcp
-from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs
+from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
 
 mcp_app = mcp.http_app(path="/")
@@ -116,6 +116,7 @@ app.include_router(chat.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(feedback.router, prefix="/api/v1")
 app.include_router(connection_logs.router, prefix="/api/v1")
+app.include_router(api_key.router, prefix="/api/v1")
 
 # ---------------------------------------------------------------------------
 # MCP server — streamable-HTTP sub-app (backward compat)
