@@ -23,6 +23,11 @@ class ResponseField(BaseModel):
     description: str = Field(default="")
     example: Any = None
 
+class ApiHeader(BaseModel):
+    name: str
+    value: str
+    description: str = Field(default="")
+
 
 # ---------------------------------------------------------------------------
 # Agency schemas
@@ -52,7 +57,7 @@ class AgencyBase(BaseModel):
     response_schema: list[ResponseField] = []
     api_spec_raw: str | None = None
     expected_payload: dict[str, Any] | None = None
-    api_headers: list[dict[str, Any]] | None = None
+    api_headers: list[ApiHeader] | None = None
 
 
 class AgencyCreate(AgencyBase):
@@ -81,7 +86,7 @@ class AgencyUpdate(BaseModel):
     response_schema: list[ResponseField] | None = None
     api_spec_raw: str | None = None
     expected_payload: dict[str, Any] | None = None
-    api_headers: list[dict[str, Any]] | None = None
+    api_headers: list[ApiHeader] | None = None
 
 
 class AgencyResponse(AgencyBase):
