@@ -44,7 +44,7 @@ class UserAPIKey(Model):
     id = fields.UUIDField(primary_key=True, default=generate_uuid)
     user = fields.ForeignKeyField("models.User", related_name="api_keys")
     name = fields.CharField(max_length=255)
-    key = fields.CharField(max_length=255, unique=True, default=generate_uuid)
+    key = fields.CharField(max_length=255, unique=True)
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:
