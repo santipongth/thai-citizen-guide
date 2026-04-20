@@ -9,12 +9,6 @@ new server 145
 
 
 
-
-
-
-
-
-
 # Welcome to your Lovable project
 
 ## Project info
