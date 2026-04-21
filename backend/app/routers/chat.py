@@ -469,8 +469,8 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(
-            "http://185.84.160.55:10540/v1/chat",
-            json={"query": query, "mcp_endpoint_url": "http://185.84.161.24/sse"},
+            "http://185.84.160.55:8000/v1/chat",
+            json={"query": query, "mcp_endpoint_url": "http://185.84.161.145/mcp", "session_id": conversation_id},
             headers={"Content-Type": "application/json"},
         )
 
