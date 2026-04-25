@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchAnalyticsInsights, fetchAgencyHealth, fetchUsageHeatmap } from '@/services/insightsApi';
+import { fetchAnalyticsInsights, fetchAgencyHealth, fetchUsageHeatmap, type HeatmapRange } from '@/services/insightsApi';
 
 export function useAnalyticsInsights() {
   return useQuery({
@@ -18,10 +18,10 @@ export function useAgencyHealth() {
   });
 }
 
-export function useUsageHeatmap() {
+export function useUsageHeatmap(range: HeatmapRange = '7d') {
   return useQuery({
-    queryKey: ['usage-heatmap'],
-    queryFn: fetchUsageHeatmap,
-    staleTime: 10 * 60_000,
+    queryKey: ['usage-heatmap', range],
+    queryFn: () => fetchUsageHeatmap(range),
+    staleTime: 60_000,
   });
 }

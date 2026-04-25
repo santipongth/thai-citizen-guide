@@ -48,8 +48,14 @@ export interface AgencyHealthData {
   generatedAt: string;
 }
 
+export type HeatmapRange = '7d' | '30d' | '90d';
+
 export interface UsageHeatmapData {
-  days: string[];
+  range: HeatmapRange;
+  days: number;
+  sampleSize: number;
+  totalMessages: number;
+  days_labels: string[];
   hours: number[];
   agencies: { id: string; name: string }[];
   hourlyByAgency: { agency: string; agencyId: string; data: number[] }[];
@@ -80,8 +86,8 @@ export async function fetchAgencyHealth(): Promise<AgencyHealthData> {
   return data.data;
 }
 
-export async function fetchUsageHeatmap(): Promise<UsageHeatmapData> {
-  const { data, error } = await supabase.functions.invoke('usage-heatmap');
+export async function fetchUsageHeatmap(range: HeatmapRange = '7d'): Promise<UsageHeatmapData> {
+  const { data, error } = await supabase.functions.invoke(`usage-heatmap?range=${range}`);
   if (error) throw new Error(error.message);
   if (!data?.success) throw new Error(data?.error || 'Failed');
   return data.data;
