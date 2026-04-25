@@ -1,4 +1,4 @@
-import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Briefcase } from "lucide-react";
+import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Briefcase, Sparkles, Activity, Flame } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -20,6 +20,9 @@ const navItems = [
   { title: "แชท", url: "/", icon: MessageSquare },
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Executive", url: "/executive", icon: Briefcase },
+  { title: "AI Insights", url: "/insights", icon: Sparkles },
+  { title: "Agency Health", url: "/health", icon: Activity },
+  { title: "Usage Heatmap", url: "/heatmap", icon: Flame },
   { title: "จัดการหน่วยงาน", url: "/agencies", icon: Building2 },
   { title: "ประวัติการสนทนา", url: "/history", icon: History },
   { title: "Architecture", url: "/architecture", icon: Network },
