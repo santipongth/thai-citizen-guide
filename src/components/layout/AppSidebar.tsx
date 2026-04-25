@@ -1,4 +1,4 @@
-import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut } from "lucide-react";
+import { MessageSquare, LayoutDashboard, Building2, History, Network, LogOut, Briefcase } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -19,6 +19,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 const navItems = [
   { title: "แชท", url: "/", icon: MessageSquare },
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Executive", url: "/executive", icon: Briefcase },
   { title: "จัดการหน่วยงาน", url: "/agencies", icon: Building2 },
   { title: "ประวัติการสนทนา", url: "/history", icon: History },
   { title: "Architecture", url: "/architecture", icon: Network },
