@@ -18,6 +18,7 @@ function getColor(value: number, max: number) {
   return `hsl(0 75% ${60 - intensity * 15}%)`;
 }
 
+export default function HeatmapPage() {
   const [range, setRange] = useState<HeatmapRange>('7d');
   const { data, isLoading } = useUsageHeatmap(range);
 
