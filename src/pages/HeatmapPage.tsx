@@ -1,9 +1,11 @@
 import { useUsageHeatmap } from '@/hooks/useInsights';
+import type { HeatmapRange } from '@/services/insightsApi';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Flame, Clock, TrendingUp, Lightbulb } from 'lucide-react';
-import { useMemo } from 'react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Flame, Clock, TrendingUp, Lightbulb, Database } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 function getColor(value: number, max: number) {
   if (max === 0) return 'hsl(213 30% 95%)';
@@ -16,8 +18,8 @@ function getColor(value: number, max: number) {
   return `hsl(0 75% ${60 - intensity * 15}%)`;
 }
 
-export default function HeatmapPage() {
-  const { data, isLoading } = useUsageHeatmap();
+  const [range, setRange] = useState<HeatmapRange>('7d');
+  const { data, isLoading } = useUsageHeatmap(range);
 
   const maxDayHour = useMemo(() => {
     if (!data) return 0;
@@ -40,15 +42,31 @@ export default function HeatmapPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Flame className="h-7 w-7 text-orange-500" />
             Usage Heatmap
           </h1>
-          <p className="text-muted-foreground mt-1">ปริมาณคำถามตามช่วงเวลา-หน่วยงาน เพื่อวางแผนทรัพยากร</p>
+          <p className="text-muted-foreground mt-1">ปริมาณคำถามตามช่วงเวลา-หน่วยงาน จากข้อมูลจริง</p>
         </div>
-        <Badge variant="outline" className="text-xs">เฉลี่ย 7 วันล่าสุด</Badge>
+        <div className="flex items-center gap-3">
+          <Badge variant="outline" className="text-xs flex items-center gap-1">
+            <Database className="h-3 w-3" />
+            {data.sampleSize.toLocaleString()} conversations · {data.totalMessages.toLocaleString()} messages
+          </Badge>
+          <ToggleGroup
+            type="single"
+            value={range}
+            onValueChange={(v) => v && setRange(v as HeatmapRange)}
+            variant="outline"
+            size="sm"
+          >
+            <ToggleGroupItem value="7d">7 วัน</ToggleGroupItem>
+            <ToggleGroupItem value="30d">30 วัน</ToggleGroupItem>
+            <ToggleGroupItem value="90d">90 วัน</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
       </div>
 
       {/* Insights */}
