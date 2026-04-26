@@ -14,6 +14,6 @@ run CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app/agent-proxy .
 from alpine as production
 run apk --no-cache add ca-certificates
 workdir /app
-copy --from=builder /app/agent-proxy .
+copy --from=builder /app/agent-proxy /app/agent-proxy
 expose 8080
 cmd ["/app/agent-proxy"]
