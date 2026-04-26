@@ -36,7 +36,7 @@ jobs:
       - name: Pull latest changes
         run: |
           echo "📥 Pulling latest changes..."
-          git pull origin ${{ github.ref_name }}
+          git pull --force origin ${{ github.ref_name }}
 
       - name: Build and start containers
         id: docker_deploy
