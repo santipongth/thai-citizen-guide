@@ -12,6 +12,12 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 )
 
 func init() {
@@ -25,7 +31,23 @@ func main() {
 	slog.Info("Connecting to PostgreSQL database")
 	pool := mustPanic(pgxpool.New(ctx, dsn))
 
+	tp, err := InitTracer(ctx)
+	if err != nil {
+		slog.Error("Failed to initialize tracer", slog.Any("error", err))
+		return
+	}
+	defer func() {
+		if err := tp.Shutdown(ctx); err != nil {
+			slog.Error("Error shutting down tracer provider", slog.Any("error", err))
+		}
+	}()
+
+	tracer := otel.Tracer("agent-proxy")
+
 	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracer.Start(r.Context(), "Handle HTTP Request")
+		defer span.End()
+
 		defer func() { _ = r.Body.Close() }()
 		var body bytes.Buffer
 
@@ -38,11 +60,13 @@ func main() {
 
 		agentID := regexp.MustCompile(`^/agent-proxy/([^/]+)`).FindStringSubmatch(r.URL.Path)
 		if len(agentID) < 2 {
+			span.SetStatus(codes.Error, "missing id")
 			http.Error(w, "Bad Request: missing id", http.StatusBadRequest)
 			return
 		}
 
 		if !regexp.MustCompile(`^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$`).MatchString(agentID[1]) {
+			span.SetStatus(codes.Error, "invalid id format")
 			http.Error(w, "Bad Request: invalid id format", http.StatusBadRequest)
 			return
 		}
@@ -52,10 +76,13 @@ func main() {
 		var apiHeaders []map[string]string
 		err := pool.QueryRow(ctx, q, agentID[1]).Scan(&endpointURL, &apiHeaders)
 		if err == pgx.ErrNoRows {
+			span.SetStatus(codes.Error, "agent not found or inactive")
 			http.Error(w, "Not Found", http.StatusNotFound)
 			return
 		}
 		if err != nil {
+			span.SetStatus(codes.Error, "internal server error")
+			span.RecordError(err)
 			slog.Error("Error querying database", slog.Any("error", err))
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
@@ -76,6 +103,8 @@ func main() {
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
+			span.SetStatus(codes.Error, "error forwarding request to backend")
+			span.RecordError(err)
 			slog.Error("Error forwarding request to backend", slog.Any("error", err))
 			http.Error(w, "Bad Gateway", http.StatusBadGateway)
 			return
@@ -91,12 +120,16 @@ func main() {
 
 		_, err = io.Copy(w, resp.Body)
 		if err != nil {
+			span.SetStatus(codes.Error, "error copying response body")
+			span.RecordError(err)
 			slog.Error("Error copying response body", slog.Any("error", err))
 		}
 
 		q = "update agencies set total_calls = total_calls + 1 where id = $1"
 		_, err = pool.Exec(ctx, q, agentID[1])
 		if err != nil {
+			span.SetStatus(codes.Error, "error updating total_calls")
+			span.RecordError(err)
 			slog.Error("Error updating total_calls", slog.Any("error", err))
 		}
 	})
@@ -110,4 +143,31 @@ func mustPanic[T any](v T, err error) T {
 		panic(err)
 	}
 	return v
+}
+
+func InitTracer(ctx context.Context) (*sdktrace.TracerProvider, error) {
+	exporter, err := otlptracegrpc.New(ctx,
+		otlptracegrpc.WithEndpoint("otel-collector:4317"),
+		otlptracegrpc.WithInsecure(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			semconv.ServiceNameKey.String("agent-proxy"),
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(res),
+	)
+
+	otel.SetTracerProvider(tp)
+	return tp, nil
 }
