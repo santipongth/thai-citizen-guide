@@ -5,7 +5,7 @@ from typing import Any
 
 class ChatRequest(BaseModel):
     query: str
-    conversation_id: uuid.UUID | None = None
+    conversation_id: str | None = None
 
 class ChatResponseData(BaseModel):
     message_id: uuid.UUID
@@ -18,7 +18,7 @@ class ChatResponseData(BaseModel):
 class ChatResponse(BaseModel):
     success: bool
     data: ChatResponseData
-    conversation_id: uuid.UUID
+    conversation_id: str
     responseTime: int
     
     error: str | None = None
