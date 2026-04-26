@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func init() {
@@ -22,8 +23,7 @@ func main() {
 	dsn := os.Getenv("DATABASE_URL")
 
 	slog.Info("Connecting to PostgreSQL database")
-	conn := mustPanic(pgx.Connect(ctx, dsn))
-	defer func() { _ = conn.Close(ctx) }()
+	pool := mustPanic(pgxpool.New(ctx, dsn))
 
 	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() { _ = r.Body.Close() }()
@@ -50,7 +50,7 @@ func main() {
 		q := "select endpoint_url, api_headers from agencies where id = $1 and status = 'active'"
 		var endpointURL string
 		var apiHeaders []map[string]string
-		err := conn.QueryRow(ctx, q, agentID[1]).Scan(&endpointURL, &apiHeaders)
+		err := pool.QueryRow(ctx, q, agentID[1]).Scan(&endpointURL, &apiHeaders)
 		if err == pgx.ErrNoRows {
 			http.Error(w, "Not Found", http.StatusNotFound)
 			return
@@ -95,7 +95,7 @@ func main() {
 		}
 
 		q = "update agencies set total_calls = total_calls + 1 where id = $1"
-		_, err = conn.Exec(ctx, q, agentID[1])
+		_, err = pool.Exec(ctx, q, agentID[1])
 		if err != nil {
 			slog.Error("Error updating total_calls", slog.Any("error", err))
 		}
