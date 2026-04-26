@@ -21,14 +21,6 @@ RUN npm run build
 
 
 # ── Stage 2: Serve with nginx ─────────────────────────────────────────────────
-FROM nginx:1.25-alpine
-
-# Copy compiled React assets
+FROM nginx
 COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Copy nginx site config (reverse proxy rules)
-COPY nginx/default.conf /etc/nginx/conf.d/default.conf
-
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
+COPY nginx/frontend.conf /etc/nginx/conf.d/default.conf

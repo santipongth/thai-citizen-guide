@@ -1,7 +1,7 @@
 services:
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16
     restart: unless-stopped
     environment:
       POSTGRES_DB:       ${POSTGRES_DB:-chatbot}
@@ -17,11 +17,12 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    # ports:
+    #   - "9092:5432"
 
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
     restart: unless-stopped
     environment:
       DATABASE_URL:        postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@postgres:5432/${POSTGRES_DB:-chatbot}
@@ -39,19 +40,38 @@ services:
     networks:
       - chatbot-network
 
-  nginx:
+  agent-proxy:
     build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+      context: ./agent-proxy
+      target: ${BUILD_TARGET:-production}
     restart: unless-stopped
-    ports:
-      - "${PORT:-80}:80"
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@postgres:5432/${POSTGRES_DB:-chatbot}
+    volumes:
+      - ./agent-proxy:/app
     depends_on:
-      - backend
+      - postgres
     networks:
       - chatbot-network
+
+  frontend:
+    build:
+      context: .
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+    networks:
+      - chatbot-network
+
+  nginx:
+    image: nginx
+    restart: unless-stopped
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - chatbot-network
+    ports:
+      - "${PORT:-80}:80"
 
 volumes:
   postgres_data:

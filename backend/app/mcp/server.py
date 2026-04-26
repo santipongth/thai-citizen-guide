@@ -20,6 +20,7 @@ from fastmcp.dependencies import CurrentContext
 from fastmcp.server.context import Context
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import Middleware, MiddlewareContext
+from starlette.datastructures import URLPath
 
 from app.models.agency import Agency
 from app.models.user import User
@@ -90,6 +91,9 @@ async def _fetch_agencies(ctx: Context) -> dict:
     - expected_payload example JSON payload for API calls
     """
 
+    request = get_http_request()
+    http_host = request.headers.get("X-Forwarded-Host")
+
     user_is_admin = await ctx.get_state("user_is_admin")
     
     agencies = await Agency.filter(status="active").values(
@@ -110,6 +114,9 @@ async def _fetch_agencies(ctx: Context) -> dict:
         for j, header in enumerate(agency["api_headers"]):
             if header.get("name").lower() == "authorization" and not user_is_admin:
                 agencies[index]["api_headers"][j]["value"] = "REDACTED"
+
+        if agency["connection_type"] == "API":
+            agency["endpoint_url"] = f"{request.url.scheme}://{http_host}/agent-proxy/{agency['id']}"
 
     return agencies
 
