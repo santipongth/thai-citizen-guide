@@ -64,6 +64,8 @@ services:
       - frontend
       - backend
       - agent-proxy
+      - otel-collector
+      - zipkin
     networks:
       - chatbot-network
     ports:
