@@ -94,7 +94,7 @@ func main() {
 		span.SetAttributes(attribute.String("proxy.body", body.String()))
 
 		for _, header := range apiHeaders {
-			req.Header.Add(header["name"], header["value"])
+			req.Header.Set(header["name"], header["value"])
 		}
 
 		for k, v := range req.Header {
