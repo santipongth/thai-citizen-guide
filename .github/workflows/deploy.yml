@@ -44,7 +44,7 @@ jobs:
           PARSE_SPEC_API_KEY: ${{ secrets.PARSE_SPEC_API_KEY }}
         run: |
           echo "🐳 Running docker compose up --build..."
-          docker compose up -d --build 2>&1 | tee /tmp/docker_output.txt
+          docker compose up -d --build --remove-orphans 2>&1 | tee /tmp/docker_output.txt
           EXIT_CODE=${PIPESTATUS[0]}
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
           if [ $EXIT_CODE -ne 0 ]; then
