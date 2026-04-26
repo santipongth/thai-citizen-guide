@@ -72,8 +72,7 @@ func main() {
 			return
 		}
 		if err != nil {
-			span.SetStatus(codes.Error, "internal server error")
-			span.RecordError(err)
+			span.SetStatus(codes.Error, "internal server error: "+err.Error())
 			slog.Error("Error querying database", slog.Any("error", err))
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
@@ -101,13 +100,12 @@ func main() {
 		}
 
 		span.SetAttributes(attribute.String("proxy.method", req.Method))
-		span.SetAttributes(attribute.String("proxy.url", req.RequestURI))
+		span.SetAttributes(attribute.String("proxy.url", req.URL.String()))
 		span.SetAttributes(attribute.String("proxy.body", body.String()))
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			span.SetStatus(codes.Error, "error forwarding request to backend")
-			span.RecordError(err)
+			span.SetStatus(codes.Error, "error forwarding request to backend: "+err.Error())
 			slog.Error("Error forwarding request to backend", slog.Any("error", err))
 			http.Error(w, "Bad Gateway", http.StatusBadGateway)
 			return
@@ -123,18 +121,18 @@ func main() {
 
 		_, err = io.Copy(w, resp.Body)
 		if err != nil {
-			span.SetStatus(codes.Error, "error copying response body")
-			span.RecordError(err)
+			span.SetStatus(codes.Error, "error copying response body: "+err.Error())
 			slog.Error("Error copying response body", slog.Any("error", err))
 		}
 
 		q = "update agencies set total_calls = total_calls + 1 where id = $1"
 		_, err = pool.Exec(ctx, q, agentID[1])
 		if err != nil {
-			span.SetStatus(codes.Error, "error updating total_calls")
-			span.RecordError(err)
+			span.SetStatus(codes.Error, "error updating total_calls: "+err.Error())
 			slog.Error("Error updating total_calls", slog.Any("error", err))
 		}
+
+		span.SetStatus(codes.Ok, "request handled successfully")
 	})
 
 	slog.Info("Starting HTTP server on http://localhost:8080")
