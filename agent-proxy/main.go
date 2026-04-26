@@ -89,19 +89,20 @@ func main() {
 		req, _ := http.NewRequestWithContext(ctx, r.Method, endpointURL, r.Body)
 		req.Header = r.Header.Clone()
 
+		span.SetAttributes(attribute.String("proxy.method", req.Method))
+		span.SetAttributes(attribute.String("proxy.url", req.URL.String()))
+		span.SetAttributes(attribute.String("proxy.body", body.String()))
+
 		for _, header := range apiHeaders {
 			req.Header.Add(header["name"], header["value"])
 		}
 
-		for k := range req.Header {
+		for k, v := range req.Header {
 			if strings.HasPrefix(k, "X-Forwarded") {
 				req.Header.Del(k)
 			}
+			span.SetAttributes(attribute.String("proxy.request_header."+k, strings.Join(v, ",")))
 		}
-
-		span.SetAttributes(attribute.String("proxy.method", req.Method))
-		span.SetAttributes(attribute.String("proxy.url", req.URL.String()))
-		span.SetAttributes(attribute.String("proxy.body", body.String()))
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
