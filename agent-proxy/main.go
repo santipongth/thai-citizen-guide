@@ -124,13 +124,15 @@ func main() {
 		w.WriteHeader(resp.StatusCode)
 
 		var responseBody bytes.Buffer
-		_, err = io.Copy(&responseBody, resp.Body)
-		if err != nil {
-			span.SetStatus(codes.Error, "error copying response body: "+err.Error())
-			slog.Error("Error copying response body", slog.Any("error", err))
+
+		if resp.Body != nil {
+			defer func() { _ = resp.Body.Close() }()
+			_, _ = io.Copy(&body, resp.Body)
+			resp.Body = io.NopCloser(&body)
 		}
 
-		_, _ = io.Copy(w, &responseBody)
+		_, _ = io.Copy(w, resp.Body)
+
 		span.SetAttributes(attribute.String("proxy.response_body", responseBody.String()))
 
 		q = "update agencies set total_calls = total_calls + 1 where id = $1"
