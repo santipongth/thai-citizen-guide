@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -48,16 +49,6 @@ func main() {
 		ctx, span := tracer.Start(r.Context(), "Handle HTTP Request")
 		defer span.End()
 
-		defer func() { _ = r.Body.Close() }()
-		var body bytes.Buffer
-
-		if r.Body != nil {
-			_, _ = io.Copy(&body, r.Body)
-			r.Body = io.NopCloser(&body)
-		}
-
-		slog.Debug("Received HTTP request", "method", r.Method, "path", r.URL.Path, "headers", r.Header, "body", body.String())
-
 		agentID := regexp.MustCompile(`^/agent-proxy/([^/]+)`).FindStringSubmatch(r.URL.Path)
 		if len(agentID) < 2 {
 			span.SetStatus(codes.Error, "missing id")
@@ -88,6 +79,14 @@ func main() {
 			return
 		}
 
+		var body bytes.Buffer
+
+		if r.Body != nil {
+			defer func() { _ = r.Body.Close() }()
+			_, _ = io.Copy(&body, r.Body)
+			r.Body = io.NopCloser(&body)
+		}
+
 		req, _ := http.NewRequestWithContext(ctx, r.Method, endpointURL, r.Body)
 		req.Header = r.Header.Clone()
 
@@ -100,6 +99,10 @@ func main() {
 				req.Header.Del(k)
 			}
 		}
+
+		span.SetAttributes(attribute.String("proxy.method", req.Method))
+		span.SetAttributes(attribute.String("proxy.url", req.RequestURI))
+		span.SetAttributes(attribute.String("proxy.body", body.String()))
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -166,6 +169,7 @@ func InitTracer(ctx context.Context) (*sdktrace.TracerProvider, error) {
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(res),
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 	)
 
 	otel.SetTracerProvider(tp)

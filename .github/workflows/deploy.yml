@@ -36,12 +36,10 @@ jobs:
       - name: Pull latest changes
         run: |
           echo "📥 Pulling latest changes..."
-          git pull --force origin ${{ github.ref_name }}
+          git pull origin ${{ github.ref_name }}
 
       - name: Build and start containers
         id: docker_deploy
-        env:
-          PARSE_SPEC_API_KEY: ${{ secrets.PARSE_SPEC_API_KEY }}
         run: |
           echo "🐳 Running docker compose up --build..."
           docker compose up -d --build --remove-orphans 2>&1 | tee /tmp/docker_output.txt
