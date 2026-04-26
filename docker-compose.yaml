@@ -61,7 +61,9 @@ services:
       # - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
-      - otel-collector
+      - frontend
+      - backend
+      - agent-proxy
     networks:
       - chatbot-network
     ports:
