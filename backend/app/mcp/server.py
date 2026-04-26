@@ -113,7 +113,8 @@ async def _fetch_agencies(ctx: Context) -> dict:
         
         for j, header in enumerate(agency["api_headers"]):
             if header.get("name").lower() == "authorization" and not user_is_admin:
-                agencies[index]["api_headers"][j]["value"] = "REDACTED"
+                # agencies[index]["api_headers"][j]["value"] = "REDACTED"
+                del agencies[index]["api_headers"][j]
 
         if agency["connection_type"] == "API":
             agency["endpoint_url"] = f"{request.url.scheme}://{http_host}/agent-proxy/{agency['id']}"
