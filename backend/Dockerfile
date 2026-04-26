@@ -1,5 +1,5 @@
 # Use a Python image with uv pre-installed
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim as base
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
 # Setup a non-root user
 RUN groupadd --system --gid 999 nonroot \
@@ -26,7 +26,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --locked --no-install-project
 
-from base as production
 # Then, add the rest of the project source code and install it
 # Installing separately from its dependencies allows optimal layer caching
 COPY . /app
