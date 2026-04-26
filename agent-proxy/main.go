@@ -111,19 +111,26 @@ func main() {
 			return
 		}
 
+		span.SetAttributes(attribute.Int("proxy.response_status", resp.StatusCode))
+
 		defer func() { _ = resp.Body.Close() }()
 
 		for k, v := range resp.Header {
 			w.Header()[k] = v
+			span.SetAttributes(attribute.String("proxy.response_header."+k, strings.Join(v, ",")))
 		}
 
 		w.WriteHeader(resp.StatusCode)
 
-		_, err = io.Copy(w, resp.Body)
+		var responseBody bytes.Buffer
+		_, err = io.Copy(&responseBody, resp.Body)
 		if err != nil {
 			span.SetStatus(codes.Error, "error copying response body: "+err.Error())
 			slog.Error("Error copying response body", slog.Any("error", err))
 		}
+
+		_, _ = io.Copy(w, &responseBody)
+		span.SetAttributes(attribute.String("proxy.response_body", responseBody.String()))
 
 		q = "update agencies set total_calls = total_calls + 1 where id = $1"
 		_, err = pool.Exec(ctx, q, agentID[1])
