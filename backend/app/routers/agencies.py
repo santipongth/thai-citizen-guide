@@ -96,6 +96,7 @@ async def create_agency(body: AgencyCreate, _: User = Depends(require_admin)):
     # Serialise nested Pydantic objects to plain dicts for JSON fields
     data["api_endpoints"] = [e.model_dump() for e in body.api_endpoints]
     data["response_schema"] = [f.model_dump() for f in body.response_schema]
+    data["api_headers"] = [h.model_dump() for h in body.api_headers] if body.api_headers else []
 
     agency = await Agency.create(**data)
     return AgencyResponse.model_validate(agency)
@@ -115,7 +116,7 @@ async def replace_agency(agency_id: uuid.UUID, body: AgencyCreate, _: User = Dep
     data = body.model_dump()
     data["api_endpoints"] = [e.model_dump() for e in body.api_endpoints]
     data["response_schema"] = [f.model_dump() for f in body.response_schema]
-
+    data["api_headers"] = [h.model_dump() for h in body.api_headers] if body.api_headers else []
     await agency.update_from_dict(data).save()
     return AgencyResponse.model_validate(agency)
 
@@ -143,6 +144,11 @@ async def update_agency(agency_id: uuid.UUID, body: AgencyUpdate, _: User = Depe
         update_data["response_schema"] = [
             f.model_dump() if hasattr(f, "model_dump") else f
             for f in update_data["response_schema"]
+        ]
+    if "api_headers" in update_data and update_data["api_headers"] is not None:
+        update_data["api_headers"] = [
+            h.model_dump() if hasattr(h, "model_dump") else h
+            for h in update_data["api_headers"]
         ]
 
     await agency.update_from_dict(update_data).save()

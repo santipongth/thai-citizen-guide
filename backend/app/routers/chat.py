@@ -465,25 +465,16 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
         conv = await Conversation.get(id=conversation_id)
 
     if not query:
-        return {"success": False, "error": "Missing query"}
+        return {"success": False, "error": "missing query"}
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=180.0) as client:
         resp = await client.post(
-            "http://185.84.160.55:10540/v1/chat",
-            json={"query": query, "mcp_endpoint_url": "http://185.84.161.24/sse"},
+            "http://185.84.160.55:8000/v3/chat",
+            json={"query": query, "mcp_endpoint_url": "http://185.84.161.145/mcp/", "session_id": conversation_id},
             headers={"Content-Type": "application/json"},
         )
 
     if resp.status_code != 200:
-        await ConnectionLog.create(
-            agency=None,
-            action="query",
-            connection_type="A2A",
-            status="error",
-            latency_ms=int((time.time() - start) * 1000),
-            detail=f"HTTP {resp.status_code}: {resp.text}",
-        )
-
         return {"success": False, "error": resp.text}
         
     response_time = int((time.time() - start) * 1000)
@@ -516,29 +507,14 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
         conversation_id=conversation_id,
         role='user',
         content=query,
-        agent_steps=[],
-        sources=[],
-        category=None,
     )
     
     response_msg = await Message.create(
         conversation_id=conversation_id,
         role='assistant',
         content=answer,
-        agent_steps=[],
-        sources=[],
         response_time=response_time,
-        agency_ids=[],
         errors=errors,
-    )
-
-    await ConnectionLog.create(
-        agency=None,
-        action="query",
-        connection_type="A2A",
-        status="success" if not errors else "error",
-        latency_ms=response_time,
-        detail=f"query: {query}\n\nanswer: {answer}\n\nerrors: {errors}",
     )
 
     return {

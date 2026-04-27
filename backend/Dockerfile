@@ -1,42 +1,32 @@
-# ── Stage 1: Dependency install ───────────────────────────────────────────────
-FROM python:3.11-slim AS builder
+from python:3.12-slim-trixie as base
+copy --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-WORKDIR /app
+from base as development
+workdir /app
+env UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
+copy pyproject.toml uv.lock ./
+run --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --locked --no-install-project
+copy . .
+expose 8080
+cmd ["uv", "run", "fastapi", "dev", "--host", "0.0.0.0", "--port", "8080"]
 
-# Install uv
-RUN pip install --no-cache-dir uv
-
-# Copy only dependency manifests first (better layer caching)
-COPY pyproject.toml uv.lock ./
-
-# Install production deps into /app/.venv
-RUN uv sync --frozen --no-dev
-
-
-# ── Stage 2: Runtime ──────────────────────────────────────────────────────────
-FROM python:3.11-slim
-
-# curl is needed for the healthcheck
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Copy the pre-built venv from builder
-COPY --from=builder /app/.venv /app/.venv
-
-# Copy application source
-COPY . .
-
-# Put the venv on PATH so plain `python` / `uvicorn` work without `uv run`
-ENV PATH="/app/.venv/bin:$PATH" \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
-
-EXPOSE 8000
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+from base as production
+run apt update && apt install -y curl ca-certificates
+workdir /app
+env UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_NO_DEV=1
+copy pyproject.toml uv.lock ./
+run --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --locked --no-install-project
+copy . .
+expose 8080
+healthcheck --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    cmd curl -f http://localhost:8080/health || exit 1
+cmd ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

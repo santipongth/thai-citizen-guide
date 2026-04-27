@@ -4,13 +4,7 @@ npx @modelcontextprotocol/inspector
 
 
 
-
-
-
-
-
-
-
+new server 145
 
 
 

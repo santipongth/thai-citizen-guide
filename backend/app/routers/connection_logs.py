@@ -80,7 +80,7 @@ async def list_connection_logs(
 
     last_day_date = datetime.now() - timedelta(days=1)
     average_latency_ms = await qs.filter(created_at__gte=last_day_date).annotate(avg=Avg("latency_ms")).values("avg")
-    average_latency_ms = int(average_latency_ms[0]["avg"]) if average_latency_ms else 0
+    average_latency_ms = int(average_latency_ms[0]["avg"] or 0) if average_latency_ms else 0
 
     return ListConnectionLogResponse(
         search=search,
@@ -139,7 +139,7 @@ async def get_connection_log_info(_: User = Depends(require_admin)) -> Connectio
     
     last_day_date = datetime.now() - timedelta(days=1)
     average_latency_ms = await ConnectionLog.filter(created_at__gte=last_day_date).annotate(avg=Avg("latency_ms")).values("avg")
-    average_latency_ms = int(average_latency_ms[0]["avg"]) if average_latency_ms else 0
+    average_latency_ms = int(average_latency_ms[0]["avg"] or 0) if average_latency_ms else 0
 
     return ConnectionLogInfoResponse(
         total_connections=total_connections,

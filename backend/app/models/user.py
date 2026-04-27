@@ -35,3 +35,18 @@ class User(Model):
     def is_admin(self) -> bool:
         return self.role == "admin"
 
+class UserAPIKey(Model):
+    """
+    API keys for users to access the AI Chatbot API.
+    Each key is associated with a user and has its own permissions and expiration.
+    """
+
+    id = fields.UUIDField(primary_key=True, default=generate_uuid)
+    user = fields.ForeignKeyField("models.User", related_name="api_keys")
+    name = fields.CharField(max_length=255)
+    key = fields.CharField(max_length=255, unique=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = "user_api_keys"
+        

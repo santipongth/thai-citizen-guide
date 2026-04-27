@@ -33,7 +33,7 @@ from starlette.responses import Response
 from app.config import settings
 from app.database import init_db, close_db
 from app.mcp.server import mcp
-from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs
+from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
 
 mcp_app = mcp.http_app(path="/")
@@ -116,6 +116,9 @@ app.include_router(chat.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(feedback.router, prefix="/api/v1")
 app.include_router(connection_logs.router, prefix="/api/v1")
+app.include_router(api_key.router, prefix="/api/v1")
+app.include_router(executive_summary.router, prefix="/api/v1")
+app.include_router(insight.router, prefix="/api/v1")
 
 # ---------------------------------------------------------------------------
 # MCP server — streamable-HTTP sub-app (backward compat)
@@ -138,8 +141,27 @@ app.mount("/messages", _sse_transport.handle_post_message)
 
 @app.get("/health", tags=["Health"])
 async def health_check():
-    return {
-        "status": "ok",
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-    }
+    """Health check endpoint."""
+    return "ok\n"
+
+# ---------------------------------------------------------------------------
+# Opentelemetry auto-instrumentation
+# ---------------------------------------------------------------------------
+from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+resource = Resource.create(attributes={
+    SERVICE_NAME: "backend"
+})
+
+tracerProvider = TracerProvider(resource=resource)
+processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="otel-collector:4317", insecure=True))
+tracerProvider.add_span_processor(processor)
+trace.set_tracer_provider(tracerProvider)
+
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+FastAPIInstrumentor.instrument_app(app)

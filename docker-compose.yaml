@@ -1,7 +1,7 @@
 services:
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16
     restart: unless-stopped
     environment:
       POSTGRES_DB:       ${POSTGRES_DB:-chatbot}
@@ -17,39 +17,93 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    # ports:
+    #   - "9092:5432"
 
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      target: ${BUILD_TARGET:-production}
     restart: unless-stopped
     environment:
-      DATABASE_URL:        postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@postgres:5432/${POSTGRES_DB:-chatbot}
-      JWT_SECRET:          ${JWT_SECRET:-change-me-in-production-use-a-long-random-string}
-      JWT_ALGORITHM:       HS256
-      JWT_EXPIRE_MINUTES:  ${JWT_EXPIRE_MINUTES:-10080}
-      DEBUG:               ${DEBUG:-false}
-      PARSE_SPEC_URL:      ${PARSE_SPEC_URL:-http://thaillm.or.th/api/openthaigpt/v1/chat/completions}
-      PARSE_SPEC_API_KEY:  ${PARSE_SPEC_API_KEY:-}
-      PARSE_SPEC_TIMEOUT:  ${PARSE_SPEC_TIMEOUT:-60}
-      PARSE_SPEC_LLM_MODEL: ${PARSE_SPEC_LLM_MODEL:-/model}
+      DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@postgres:5432/${POSTGRES_DB:-chatbot}
     depends_on:
-      postgres:
-        condition: service_healthy
+      - postgres
+    networks:
+      - chatbot-network
+    develop:
+      watch:
+        - action: rebuild
+          path: ./backend/pyproject.toml
+        - action: rebuild
+          path: ./backend/uv.lock
+        - action: restart
+          path: ./backend/migrations
+          target: /app/migrations
+        - action: sync
+          path: ./backend/app
+          target: /app/app         
+
+  agent-proxy:
+    build:
+      context: ./agent-proxy
+      target: ${BUILD_TARGET:-production}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@postgres:5432/${POSTGRES_DB:-chatbot}
+    depends_on:
+      - postgres
+    networks:
+      - chatbot-network
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./agent-proxy
+          target: /app
+
+  frontend:
+    build:
+      context: ./frontend
+      target: ${BUILD_TARGET:-production}
+    restart: unless-stopped
+    networks:
+      - chatbot-network
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend/src
+          target: /app/src
+        - action: rebuild
+          path: ./frontend/package.json
+
+  nginx:
+    image: nginx
+    restart: unless-stopped
+    volumes:
+      # - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - frontend
+      - backend
+      - agent-proxy
+      - otel-collector
+      - zipkin
+    networks:
+      - chatbot-network
+    ports:
+      - "${PORT:-80}:80"
+
+  otel-collector:
+    image: otel/opentelemetry-collector
+    restart: unless-stopped
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol/config.yaml
     networks:
       - chatbot-network
 
-  nginx:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+  zipkin:
+    image: openzipkin/zipkin
     restart: unless-stopped
-    ports:
-      - "${PORT:-80}:80"
-    depends_on:
-      - backend
     networks:
       - chatbot-network
 

@@ -8,10 +8,10 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # Database
-    DATABASE_URL: str = "postgres://postgres:password@localhost:5432/ai_chatbot"
+    DATABASE_URL: str = "postgres://postgres:postgres@localhost:5432/ai_chatbot"
 
     # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:8080"]
 
     # JWT authentication
     JWT_SECRET: str = "change-me-in-production-use-a-long-random-string"
