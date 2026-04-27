@@ -30,3 +30,12 @@ backend
 *.md
 supabase
 docs
+
+node_modules
+dist
+.git
+.gitignore
+*.md
+.env*
+.DS_Store
+coverage

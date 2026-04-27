@@ -33,7 +33,7 @@ from starlette.responses import Response
 from app.config import settings
 from app.database import init_db, close_db
 from app.mcp.server import mcp
-from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key
+from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
 
 mcp_app = mcp.http_app(path="/")
@@ -117,6 +117,8 @@ app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(feedback.router, prefix="/api/v1")
 app.include_router(connection_logs.router, prefix="/api/v1")
 app.include_router(api_key.router, prefix="/api/v1")
+app.include_router(executive_summary.router, prefix="/api/v1")
+app.include_router(insight.router, prefix="/api/v1")
 
 # ---------------------------------------------------------------------------
 # MCP server — streamable-HTTP sub-app (backward compat)
@@ -139,11 +141,8 @@ app.mount("/messages", _sse_transport.handle_post_message)
 
 @app.get("/health", tags=["Health"])
 async def health_check():
-    return {
-        "status": "ok",
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-    }
+    """Health check endpoint."""
+    return "ok\n"
 
 # ---------------------------------------------------------------------------
 # Opentelemetry auto-instrumentation

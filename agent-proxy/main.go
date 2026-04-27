@@ -145,8 +145,14 @@ func main() {
 		span.SetStatus(codes.Ok, "request handled successfully")
 	})
 
+	http.Handle("/agent-proxy/", proxyHandler)
+
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("ok\n"))
+	})
+
 	slog.Info("Starting HTTP server on http://localhost:8080")
-	_ = http.ListenAndServe(":8080", proxyHandler)
+	_ = http.ListenAndServe(":8080", nil)
 }
 
 func mustPanic[T any](v T, err error) T {

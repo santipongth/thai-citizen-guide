@@ -1,26 +1,25 @@
-# ── Stage 1: Build React app ──────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+from node:24 as base
+env PNPM_HOME="/pnpm" \
+    PATH="$PNPM_HOME:$PATH"
+run corepack enable && corepack prepare pnpm@latest --activate
 
-WORKDIR /app
+workdir /app
+copy package.json package-lock.json pnpm-lock.yaml pnpm-workspace.yaml ./
+run --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile
 
-# Copy package manifests (support npm / pnpm lock files)
-COPY package.json package-lock.json* pnpm-lock.yaml* bun.lock* ./
+from base as development
+copy . .
+expose 8080
+cmd ["pnpm", "run", "dev"]
 
-# Install with npm (falls back gracefully when lock file is present)
-RUN npm ci --prefer-offline 2>/dev/null || npm install
+from base as builder
+copy . .
+run pnpm run build
 
-# Copy source
-COPY . .
-
-# API_BASE_URL is intentionally left empty so the browser sends API
-# requests to the same origin (nginx handles proxying to the backend).
-ARG VITE_API_BASE_URL=""
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
-
-RUN npm run build
-
-
-# ── Stage 2: Serve with nginx ─────────────────────────────────────────────────
-FROM nginx as production
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+from nginx as production
+copy --from=builder /app/dist /usr/share/nginx/html
+copy nginx.conf /etc/nginx/conf.d/default.conf
+expose 8080
+healthcheck --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    cmd curl -f http://localhost:8080/health || exit 1

@@ -1,56 +1,32 @@
-# Use a Python image with uv pre-installed
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+from python:3.12-slim-trixie as base
+copy --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Setup a non-root user
-RUN groupadd --system --gid 999 nonroot \
- && useradd --system --gid 999 --uid 999 --create-home nonroot
-
-# Install the project into `/app`
-WORKDIR /app
-
-# Enable bytecode compilation
-ENV UV_COMPILE_BYTECODE=1
-
-# Copy from the cache instead of linking since it's a mounted volume
-ENV UV_LINK_MODE=copy
-
-# Omit development dependencies
-ENV UV_NO_DEV=1
-
-# Ensure installed tools can be executed out of the box
-ENV UV_TOOL_BIN_DIR=/usr/local/bin
-
-# Install the project's dependencies using the lockfile and settings
-RUN --mount=type=cache,target=/root/.cache/uv \
+from base as development
+workdir /app
+env UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
+copy pyproject.toml uv.lock ./
+run --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --locked --no-install-project
+copy . .
+expose 8080
+cmd ["uv", "run", "fastapi", "dev", "--host", "0.0.0.0", "--port", "8080"]
 
-# Then, add the rest of the project source code and install it
-# Installing separately from its dependencies allows optimal layer caching
-COPY . /app
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked
-
-# Place executables in the environment at the front of the path
-ENV PATH="/app/.venv/bin:$PATH"
-
-# Reset the entrypoint, don't invoke `uv`
-ENTRYPOINT []
-
-# Use the non-root user to run our application
-USER nonroot
-
-EXPOSE 8000
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
-# Run the FastAPI application by default
-# Uses `uv run` to sync dependencies on startup, respecting UV_NO_DEV
-# Uses `fastapi dev` to enable hot-reloading when the `watch` sync occurs
-# Uses `--host 0.0.0.0` to allow access from outside the container
-# Note in production, you should use `fastapi run` instead
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-
-
+from base as production
+run apt update && apt install -y curl ca-certificates
+workdir /app
+env UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_NO_DEV=1
+copy pyproject.toml uv.lock ./
+run --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --locked --no-install-project
+copy . .
+expose 8080
+healthcheck --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    cmd curl -f http://localhost:8080/health || exit 1
+cmd ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -23,6 +23,7 @@ services:
   backend:
     build:
       context: ./backend
+      target: ${BUILD_TARGET:-production}
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@postgres:5432/${POSTGRES_DB:-chatbot}
@@ -30,6 +31,18 @@ services:
       - postgres
     networks:
       - chatbot-network
+    develop:
+      watch:
+        - action: rebuild
+          path: ./backend/pyproject.toml
+        - action: rebuild
+          path: ./backend/uv.lock
+        - action: restart
+          path: ./backend/migrations
+          target: /app/migrations
+        - action: sync
+          path: ./backend/app
+          target: /app/app         
 
   agent-proxy:
     build:
@@ -38,21 +51,30 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@postgres:5432/${POSTGRES_DB:-chatbot}
-    volumes:
-      - ./agent-proxy:/app
     depends_on:
       - postgres
     networks:
       - chatbot-network
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./agent-proxy
+          target: /app
 
   frontend:
     build:
       context: ./frontend
+      target: ${BUILD_TARGET:-production}
     restart: unless-stopped
-    environment:
-      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
     networks:
       - chatbot-network
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend/src
+          target: /app/src
+        - action: rebuild
+          path: ./frontend/package.json
 
   nginx:
     image: nginx
