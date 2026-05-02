@@ -32,7 +32,7 @@ from app.models.connection_log import ConnectionLog
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.auth.dependencies import get_current_user_optional
-from app.utils import generate_uuid
+from app.utils import generate_uuid, now
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 tracer = trace.get_tracer(__name__)
@@ -472,12 +472,10 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
             span.set_attributes({"error": "missing query"})
             return {"success": False, "error": "missing query"}
 
+        payload = {"query": query, "mcp_endpoint_url": "http://185.84.161.145/mcp/", "session_id": conversation_id}
+
         async with httpx.AsyncClient(timeout=180.0) as client:
-            resp = await client.post(
-                "http://185.84.160.55:8000/v3/chat",
-                json={"query": query, "mcp_endpoint_url": "http://185.84.161.145/mcp/", "session_id": conversation_id},
-                headers={"Content-Type": "application/json"},
-            )
+            resp = await client.post("http://185.84.160.55:8000/v3/chat", headers={"Content-Type": "application/json"}, json=payload)
 
         if resp.status_code != 200:
             span.set_status(Status.ERROR, f"External chat request failed with status {resp.status_code}")
@@ -489,6 +487,18 @@ async def chat_external(body: ChatRequest, user: User | None = Depends(get_curre
         raw_data = resp.json()
         span.set_attributes({"external_response": raw_data})
         # print(f"External chat response: {raw_data}")
+
+        await ConnectionLog.create(
+            id=str(generate_uuid()),
+            action="query",
+            connection_type="external_chat",
+            status="success" if resp.status_code == 200 else "error",
+            latency_ms=response_time,
+            detail=f"Query: {query}\n\n, Answer: {raw_data}",
+            created_at=now(),
+            request_body=json.dumps(payload),
+            response_body=json.dumps(raw_data),
+        )
 
         data = raw_data.get("data", {})
 
