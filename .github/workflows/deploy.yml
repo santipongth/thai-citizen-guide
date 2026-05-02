@@ -38,6 +38,14 @@ jobs:
           echo "📥 Pulling latest changes..."
           git pull origin ${{ github.ref_name }}
 
+      - name: write .env file
+        run: |
+          echo "🔧 Writing .env file..."
+          cat > .env <<EOL
+          TS_AUTHKEY=${{ secrets.TS_AUTHKEY }}
+          EOL
+          echo "✅ .env file created (update with actual values)"
+
       - name: Build and start containers
         id: docker_deploy
         run: |
