@@ -202,7 +202,7 @@ async def agency_chat_test():
 
 async def start_scheduler():
     await agency_chat_test()  # run once at startup
-    scheduler.add_job(agency_chat_test, IntervalTrigger(minutes=1))
+    scheduler.add_job(agency_chat_test, IntervalTrigger(minutes=15))
     scheduler.start()
 
 async def stop_scheduler():
