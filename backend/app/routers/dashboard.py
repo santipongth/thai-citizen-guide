@@ -73,9 +73,7 @@ async def dashboard_stats(user: User = Depends(get_current_user)) -> dict:
         """
         SELECT EXTRACT(DOW FROM created_at)::int AS dow, COUNT(*) AS questions
         FROM messages
-        WHERE role = 'user'
-            AND created_at >= date_trunc('week', NOW())
-            AND created_at <  date_trunc('week', NOW()) + INTERVAL '7 days'
+        WHERE role = 'user' and created_at >= CURRENT_DATE - INTERVAL '7 days'
         GROUP BY dow
         """
     )
