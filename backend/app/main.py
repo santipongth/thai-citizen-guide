@@ -209,6 +209,7 @@ async def agency_chat_item(agency: Agency):
                 print(f"Sent test message to agency {agency.name} with latency {latency} ms")
                 await ConnectionLog.create(
                     id=str(generate_uuid()),
+                    agency=agency,
                     action="test",
                     connection_type="API",
                     status="success" if resp.status_code == 200 else "error",

@@ -84,17 +84,8 @@ async def dashboard_stats(user: User = Depends(get_current_user)) -> dict:
         for i in range(7)
     ]
 
-    # category_data = [
-    #     {"category": "สอบถามข้อมูล", "count": 22450 + random.randint(0, 200)},
-    #     {"category": "ตรวจสอบสถานะ", "count": 12300 + random.randint(0, 200)},
-    #     {"category": "ขั้นตอนดำเนินการ", "count": 8900 + random.randint(0, 200)},
-    #     {"category": "กฎหมาย/ระเบียบ", "count": 4640 + random.randint(0, 200)},
-    # ]
-
-    category_data = [
-        {"category": c["category"], "count": c["count"]}
-        for c in await Message.filter(category__isnull=False).annotate(count=Count("id")).group_by("category").values("category", "count")
-    ]
+    categories = await Message.filter(category__isnull=False).annotate(cnt=Count("id")).group_by("category").values("category", "cnt")
+    category_data = [{"category": row["category"], "count": row["cnt"]} for row in categories]
 
     return {
         "success": True,

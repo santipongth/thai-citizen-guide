@@ -576,7 +576,7 @@ async def classify_message_category(message_id: str, query: str, answer: str):
 
     url = "https://openrouter.ai/api/v1/chat/completions"
     header = {"Content-Type": "application/json", "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}"}
-    payload = {"model": "qwen/qwen3.6-flash", "messages": [{"role": "user", "content": content}]}
+    payload = {"model": "google/gemini-2.5-flash-lite", "messages": [{"role": "user", "content": content}]}
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(url, headers=header, json=payload)
