@@ -68,13 +68,14 @@ async def dashboard_stats(user: User = Depends(get_current_user)) -> dict:
         for a in await Agency.all().values("name", "color", "total_calls")
     ]
 
-    day_names = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"]
+    day_names = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"]
     raw_weekly = await conn.execute_query_dict(
         """
-        SELECT EXTRACT(ISODOW FROM created_at)::int AS dow, COUNT(*) AS questions
+        SELECT EXTRACT(DOW FROM created_at)::int AS dow, COUNT(*) AS questions
         FROM messages
-        WHERE created_at >= date_trunc('week', NOW())
-          AND created_at <  date_trunc('week', NOW()) + INTERVAL '7 days'
+        WHERE role = 'user'
+            AND created_at >= date_trunc('week', NOW())
+            AND created_at <  date_trunc('week', NOW()) + INTERVAL '7 days'
         GROUP BY dow
         """
     )
