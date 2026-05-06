@@ -28,7 +28,7 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
   }
 }
 
-export async function fetchAgencyUsage(): Promise<{ name: string; value: number; fill: string }[]> {
+export async function fetchAgencyUsage(): Promise<typeof agencyUsageData> {
   try {
     const res = await fetchFromApi();
     return res.data.agencyUsage;
@@ -37,7 +37,7 @@ export async function fetchAgencyUsage(): Promise<{ name: string; value: number;
   }
 }
 
-export async function fetchWeeklyTrend(): Promise<{ day: string; questions: number }[]> {
+export async function fetchWeeklyTrend(): Promise<typeof weeklyTrendData> {
   try {
     const res = await fetchFromApi();
     return res.data.weeklyTrend;
@@ -46,7 +46,7 @@ export async function fetchWeeklyTrend(): Promise<{ day: string; questions: numb
   }
 }
 
-export async function fetchCategoryData(): Promise<{ category: string; count: number }[]> {
+export async function fetchCategoryData(): Promise<typeof categoryData> {
   try {
     const res = await fetchFromApi();
     return res.data.categoryData;
