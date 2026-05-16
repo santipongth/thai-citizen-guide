@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -30,7 +32,13 @@ func main() {
 	dsn := os.Getenv("DATABASE_URL")
 
 	slog.Info("Connecting to PostgreSQL database")
-	pool := mustPanic(pgxpool.New(ctx, dsn))
+	pgxpoolConfig := mustPanic(pgxpool.ParseConfig(dsn))
+	pgxpoolConfig.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, err := conn.Exec(ctx, "SET TIMEZONE TO 'Asia/Bangkok'")
+		return err
+	}
+	pool := mustPanic(pgxpool.NewWithConfig(ctx, pgxpoolConfig))
+	defer pool.Close()
 
 	tp, err := InitTracer(ctx)
 	if err != nil {
@@ -44,6 +52,18 @@ func main() {
 	}()
 
 	tracer := otel.Tracer("agent-proxy")
+
+	addConnectionLog := func(ctx context.Context, agencyID string, status string, latency int64, detail string, request_body string, response_body string) {
+		ctx, span := tracer.Start(ctx, "Add Connection Log")
+		defer span.End()
+
+		q := "insert into connection_logs (id, action, connection_type, status, latency_ms, detail, created_at, agency_id, request_body, response_body) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"
+		_, err := pool.Exec(ctx, q, uuidV7(), "proxy", "API", status, latency, detail, now(), agencyID, request_body, response_body)
+		if err != nil {
+			span.SetStatus(codes.Error, "error inserting connection log: "+err.Error())
+			slog.Error("Error inserting connection log", slog.Any("error", err))
+		}
+	}
 
 	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracer.Start(r.Context(), "Handle HTTP Request")
@@ -78,13 +98,10 @@ func main() {
 			return
 		}
 
+		defer func() { _ = r.Body.Close() }()
 		var body bytes.Buffer
-
-		if r.Body != nil {
-			defer func() { _ = r.Body.Close() }()
-			_, _ = io.Copy(&body, r.Body)
-			r.Body = io.NopCloser(&body)
-		}
+		_, _ = io.Copy(&body, r.Body)
+		r.Body = io.NopCloser(bytes.NewBuffer(body.Bytes()))
 
 		req, _ := http.NewRequestWithContext(ctx, r.Method, endpointURL, r.Body)
 		req.Header = r.Header.Clone()
@@ -104,8 +121,11 @@ func main() {
 			span.SetAttributes(attribute.String("proxy.request_header."+k, strings.Join(v, ",")))
 		}
 
+		startTime := now()
 		resp, err := http.DefaultClient.Do(req)
+		latency := now().Sub(startTime).Milliseconds()
 		if err != nil {
+			addConnectionLog(ctx, agentID[1], "error", latency, "error forwarding request: "+err.Error(), body.String(), "")
 			span.SetStatus(codes.Error, "error forwarding request to backend: "+err.Error())
 			slog.Error("Error forwarding request to backend", slog.Any("error", err))
 			http.Error(w, "Bad Gateway", http.StatusBadGateway)
@@ -124,13 +144,8 @@ func main() {
 		w.WriteHeader(resp.StatusCode)
 
 		var responseBody bytes.Buffer
-
-		if resp.Body != nil {
-			defer func() { _ = resp.Body.Close() }()
-			_, _ = io.Copy(&body, resp.Body)
-			resp.Body = io.NopCloser(&body)
-		}
-
+		_, _ = io.Copy(&responseBody, resp.Body)
+		resp.Body = io.NopCloser(bytes.NewBuffer(responseBody.Bytes()))
 		_, _ = io.Copy(w, resp.Body)
 
 		span.SetAttributes(attribute.String("proxy.response_body", responseBody.String()))
@@ -140,6 +155,18 @@ func main() {
 		if err != nil {
 			span.SetStatus(codes.Error, "error updating total_calls: "+err.Error())
 			slog.Error("Error updating total_calls", slog.Any("error", err))
+		}
+
+		var rawDetail struct {
+			Query string `json:"query"`
+		}
+		_ = json.Unmarshal(body.Bytes(), &rawDetail)
+		detail := fmt.Sprintf("Query: %s\n\nAnswer: %s", rawDetail.Query, responseBody.String())
+
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			addConnectionLog(ctx, agentID[1], "success", latency, detail, body.String(), responseBody.String())
+		} else {
+			addConnectionLog(ctx, agentID[1], "error", latency, detail, body.String(), responseBody.String())
 		}
 
 		span.SetStatus(codes.Ok, "request handled successfully")

@@ -20,8 +20,10 @@ import time
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from pydantic import BaseModel
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
 
 from app.config import settings
 from app.models.agency import Agency
@@ -30,9 +32,10 @@ from app.models.connection_log import ConnectionLog
 from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.auth.dependencies import get_current_user_optional
-from app.utils import generate_uuid
+from app.utils import generate_uuid, now
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
+tracer = trace.get_tracer(__name__)
 
 """
 Multi-Agent Router with LangGraph
@@ -454,83 +457,140 @@ async def chat_internal(body: ChatRequest, user: User | None = Depends(get_curre
     }
 
 @router.post("/external", summary="Send a query and get a synthesised AI response")
-async def chat_external(body: ChatRequest, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
-
-    start = time.time()
-    
-    query = body.query.strip()
-    conversation_id = body.conversation_id or str(generate_uuid())
-    
-    if body.conversation_id:
-        conv = await Conversation.get(id=conversation_id)
-
-    if not query:
-        return {"success": False, "error": "missing query"}
-
-    async with httpx.AsyncClient(timeout=180.0) as client:
-        resp = await client.post(
-            "http://185.84.160.55:8000/v3/chat",
-            json={"query": query, "mcp_endpoint_url": "http://185.84.161.145/mcp/", "session_id": conversation_id},
-            headers={"Content-Type": "application/json"},
-        )
-
-    if resp.status_code != 200:
-        return {"success": False, "error": resp.text}
+async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
+    with tracer.start_as_current_span("chat_external_endpoint") as span:
         
-    response_time = int((time.time() - start) * 1000)
+        query = body.query.strip()
+        conversation_id = body.conversation_id or str(generate_uuid())
+        
+        if body.conversation_id:
+            conv = await Conversation.get(id=conversation_id)
 
-    raw_data = resp.json()
-    print(f"External chat response: {raw_data}")
+        if not query:
+            span.set_status(StatusCode.ERROR, "Missing query")
+            span.set_attributes({"error": "missing query"})
+            raise HTTPException(status_code=400, detail="Missing query")
 
-    data = raw_data.get("data", {})
+        payload = {"query": query, "mcp_endpoint_url": "http://185.84.161.145/mcp/", "session_id": conversation_id}
 
-    answer = data.get("answer", "").strip()
-    errors = data.get("errors", [])
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            start_time_ns = time.perf_counter_ns()
+            resp = await client.post("http://185.84.160.55:8000/v3/chat", headers={"Content-Type": "application/json"}, json=payload)
+            end_time_ns = time.perf_counter_ns()
 
-    if not body.conversation_id:
-        conv = await Conversation.create(
-            id=conversation_id,
-            title=query[:50],
-            preview=query[:100],
-            agencies=[],
-            status='success',
-            message_count=len(answer),
-            response_time=response_time,
-            user_id=user.id if user else None,
-            external_session_id=data.get("session_id", None),
+        if resp.status_code != 200:
+            span.set_status(StatusCode.ERROR, f"External chat request failed with status {resp.status_code}")
+            span.set_attributes({"error": "external chat request failed", "status_code": resp.status_code, "response_text": resp.text})
+            raise HTTPException(status_code=502, detail="Failed to get response from external chat service")
+            
+        response_time = int((end_time_ns - start_time_ns) // 1_000_000)  # ms
+
+        raw_data = resp.json()
+        span.set_attributes({"external_response": resp.text})
+        # print(f"External chat response: {raw_data}")
+
+        await ConnectionLog.create(
+            id=str(generate_uuid()),
+            action="query",
+            connection_type="external_chat",
+            status="success" if resp.status_code == 200 else "error",
+            latency_ms=response_time,
+            detail=f"Query: {query}\n\nAnswer: {raw_data}",
+            request_body=json.dumps(payload),
+            response_body=json.dumps(raw_data),
         )
-    else:
-        conv.message_count += len(answer)
-        await conv.save()
 
-    await Message.create(
-        conversation_id=conversation_id,
-        role='user',
-        content=query,
-    )
+        data = raw_data.get("data", {})
+
+        answer = data.get("answer", "").strip()
+        errors = data.get("errors", [])
+
+        agency_ids = []
+
+        if "data" in raw_data:
+            if "sections" in raw_data["data"]:
+                for sec in raw_data["data"]["sections"]:
+                    if "agencies" in sec:
+                        agency_ids.extend([ag["id"] for ag in sec["agencies"]])
+
+        if not body.conversation_id:
+            conv = await Conversation.create(
+                id=conversation_id,
+                title=query[:50],
+                preview=query[:100],
+                agencies=[],
+                status='success',
+                message_count=len(answer),
+                response_time=response_time,
+                user_id=user.id if user else None,
+                external_session_id=data.get("session_id", None),
+            )
+        else:
+            conv.message_count += len(answer)
+            conv.updated_at = now()
+            await conv.save()
+
+        query_msg = await Message.create(
+            conversation_id=conversation_id,
+            role='user',
+            content=query,
+        )
+        
+        response_msg = await Message.create(
+            parent_id=query_msg.id,
+            conversation_id=conversation_id,
+            role='assistant',
+            content=answer,
+            response_time=response_time,
+            errors=errors,
+            agency_ids=agency_ids,
+        )
+
+        background_tasks.add_task(classify_message_category, query_msg.id, query, answer)
+
+        return {
+            "success": True,
+            "data": {
+                "message_id": response_msg.id,
+                "answer": answer,
+                "references": data.get("references", []),
+                "agentSteps": data.get("agentSteps", []),
+                "agencies": data.get("agencies", []),
+                "confidence": data.get("confidence", 0.0),
+            },
+            "conversation_id": conversation_id,
+            "responseTime": response_time,
+        }
     
-    response_msg = await Message.create(
-        conversation_id=conversation_id,
-        role='assistant',
-        content=answer,
-        response_time=response_time,
-        errors=errors,
-    )
+async def classify_message_category(message_id: str, query: str, answer: str):
+    content = f"""\
+คุณเป็นโมเดลภาษา LLM ที่เชี่ยวชาญด้านการวิเคราะห์ข้อความและการจัดหมวดหมู่คำถามในบริบทของการให้บริการข้อมูลภาครัฐไทย
+โปรดวิเคราะห์คำถามของผู้ใช้และระบุหมวดหมู่ที่ตรงที่สุด 1 หมวด จากนี้: สอบถามข้อมูล | ตรวจสอบสถานะ | ขั้นตอนดำเนินการ | กฎหมาย/ระเบียบ
+ตอบเป็นข้อความที่มีเพียงหมวดหมู่ที่วิเคราะห์ได้เท่านั้น เช่น:
+ขั้นตอนดำเนินการ
 
-    return {
-        "success": True,
-        "data": {
-            "message_id": response_msg.id,
-            "answer": answer,
-            "references": data.get("references", []),
-            "agentSteps": data.get("agentSteps", []),
-            "agencies": data.get("agencies", []),
-            "confidence": data.get("confidence", 0.0),
-        },
-        "conversation_id": conversation_id,
-        "responseTime": response_time,
-    }
+ถ้าคำถามไม่ชัดเจนหรือไม่สามารถจัดหมวดหมู่ได้ ให้ตอบว่า "ไม่สามารถจัดหมวดหมู่ได้"
+
+คำถาม: {query}
+
+คำตอบ: {answer}
+"""
+
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    header = {"Content-Type": "application/json", "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}"}
+    payload = {"model": "google/gemini-2.5-flash-lite", "messages": [{"role": "user", "content": content}]}
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(url, headers=header, json=payload)
+
+    try:
+        category = resp.json()["choices"][0]["message"]["content"].strip()
+        await Message.filter(id=message_id).update(category=category)
+    except Exception as e:
+        print(f"Error classifying message category: {e}")
+
 
 @router.post("", summary="Send a query and get a synthesised AI response")
-async def chat(body: ChatRequest, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
-    return await chat_external(body, user)
+async def chat(body: ChatRequest, background_tasks: BackgroundTasks, user: User | None = Depends(get_current_user_optional)) -> ChatResponse:
+    with tracer.start_as_current_span("chat_endpoint"):
+        return await chat_external(body, background_tasks, user)

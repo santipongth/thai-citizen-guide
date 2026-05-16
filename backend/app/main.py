@@ -14,12 +14,19 @@ MCP server:
 REST API is served under /api/v1
 """
 
+import asyncio
+import json
 import logging
+import random
+import time
+
+import httpx
 
 class EndpointFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         return record.getMessage().find("/health") == -1
 
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
 
 from contextlib import asynccontextmanager
@@ -35,6 +42,8 @@ from app.database import init_db, close_db
 from app.mcp.server import mcp
 from app.routers import agencies, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
+from app.models import Agency, ConnectionLog
+from app.utils import generate_uuid, now
 
 mcp_app = mcp.http_app(path="/")
 
@@ -67,10 +76,12 @@ async def lifespan(app: FastAPI):
     await init_db()
     await _run_seed_admin()
     await _run_seed_agencies()
+    await start_scheduler()
 
     async with mcp_app.lifespan(app):
         yield
 
+    await stop_scheduler()
     await close_db()
 
 
@@ -164,4 +175,59 @@ tracerProvider.add_span_processor(processor)
 trace.set_tracer_provider(tracerProvider)
 
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-FastAPIInstrumentor.instrument_app(app)
+FastAPIInstrumentor.instrument_app(app, excluded_urls="^/health$")
+
+# ---------------------------------------------------------------------------
+# Background scheduler
+# ---------------------------------------------------------------------------
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+scheduler = AsyncIOScheduler()
+sem = asyncio.Semaphore(5)
+
+async def agency_chat_item(agency: Agency):
+    async with sem:
+        if agency.connection_type == "API":
+            scope = agency.data_scope or ["ทั่วไป"]
+            scope = scope[random.randint(0, len(scope)-1)] if len(scope) > 0 else "ทั่วไป"
+
+            async with httpx.AsyncClient(timeout=180) as client:
+                headers = {"content-type": "application/json"}
+                for v in (agency.api_headers or []):
+                    headers[v["name"].lower()] = v["value"]
+                payload = {}
+                for k, v in agency.expected_payload.items():
+                    payload[k] = v
+                    if v == "__query__": payload[k] = "ปรึกษากฎหมาย" + scope
+                    if v == "__user_id__": payload[k] = str(generate_uuid())
+                    if v == "__session_id__": payload[k] = str(generate_uuid())
+                    if v == "__conversation_id__": payload[k] = str(generate_uuid())
+                start_ns = time.perf_counter_ns()
+                resp = await client.post(agency.endpoint_url, headers=headers, json=payload)
+                end_ns = time.perf_counter_ns()
+                latency = int((end_ns - start_ns) // 1_000_000)  # ms
+                print(f"Sent test message to agency {agency.name} with latency {latency} ms")
+                await ConnectionLog.create(
+                    id=str(generate_uuid()),
+                    agency=agency,
+                    action="test",
+                    connection_type="API",
+                    status="success" if resp.status_code == 200 else "error",
+                    latency_ms=latency,
+                    detail=f"Query: {payload.get('query', '')}\n\nAnswer: {resp.text}",
+                    request_body=json.dumps(payload),
+                    response_body=resp.text,
+                )
+
+async def agency_chat_test():
+    agencies = await Agency.all()
+    await asyncio.gather(*[agency_chat_item(ag) for ag in agencies])
+
+async def start_scheduler():
+    asyncio.create_task(agency_chat_test())
+    scheduler.add_job(agency_chat_test, IntervalTrigger(minutes=15))
+    scheduler.start()
+
+async def stop_scheduler():
+    scheduler.shutdown()

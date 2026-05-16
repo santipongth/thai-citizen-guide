@@ -42,7 +42,7 @@ export default function HeatmapPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-6 space-y-6 mx-auto">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
@@ -134,7 +134,7 @@ export default function HeatmapPage() {
               ))}
             </div>
             {data.dayHourMatrix.map(row => (
-              <div key={row.day} className="flex items-center mt-1">
+              <div key={row.day} className="flex items-center mt-4">
                 <div className="w-20 shrink-0 text-xs font-medium text-right pr-3">{row.day}</div>
                 {row.data.map((v, h) => (
                   <div
@@ -182,7 +182,7 @@ export default function HeatmapPage() {
               ))}
             </div>
             {data.hourlyByAgency.map(row => (
-              <div key={row.agencyId} className="flex items-center mt-1">
+              <div key={row.agencyId} className="flex items-center mt-4">
                 <div className="w-32 shrink-0 text-xs font-medium text-right pr-3">{row.agency}</div>
                 {row.data.map((v, h) => (
                   <div
@@ -203,7 +203,7 @@ export default function HeatmapPage() {
       </Card>
 
       {/* Recommendation */}
-      <Card className="border-primary/30 bg-primary/5">
+      {/* <Card className="border-primary/30 bg-primary/5">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Lightbulb className="h-5 w-5 text-amber-500" />
@@ -213,7 +213,7 @@ export default function HeatmapPage() {
         <CardContent>
           <p className="text-sm leading-relaxed">{data.insights.recommendation}</p>
         </CardContent>
-      </Card>
+      </Card> */}
     </div>
   );
 }

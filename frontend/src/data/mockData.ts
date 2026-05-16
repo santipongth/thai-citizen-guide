@@ -145,10 +145,14 @@ export const conversationHistory: ConversationHistory[] = [
 ];
 
 export const dashboardStats: DashboardStats = {
-  totalQuestions: 48290,
-  todayQuestions: 156,
-  avgResponseTime: '2.3 วินาที',
-  satisfactionRate: 94.5,
+  totalQuestions: 0,
+  totalQuestionsTrend: 0.0,
+  todayQuestions: 0,
+  todayQuestionsTrend: 0.0,
+  avgResponseTime: 0.0,
+  avgResponseTimeTrend: 0.0,
+  satisfactionRate: 0.0,
+  satisfactionRateTrend: 0.0,
 };
 
 export const agencyUsageData = [

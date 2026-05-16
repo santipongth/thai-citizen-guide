@@ -121,7 +121,7 @@ export default function ExecutivePage() {
   const { kpis, agencyScorecard, monthlyTrend, topIssues, weeklyBrief, generatedAt } = data;
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
+    <div className="p-6 space-y-6 mx-auto">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -132,7 +132,7 @@ export default function ExecutivePage() {
             ภาพรวมเชิงกลยุทธ์สำหรับผู้บริหาร · อัปเดตล่าสุด {new Date(generatedAt).toLocaleString('th-TH')}
           </p>
         </div>
-        <div className="flex gap-2">
+        {/* <div className="flex gap-2">
           <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
             <Activity className="h-4 w-4 mr-2" />
             รีเฟรช
@@ -141,20 +141,44 @@ export default function ExecutivePage() {
             <FileDown className="h-4 w-4 mr-2" />
             ส่งออกรายงาน PDF
           </Button>
-        </div>
+        </div> */}
       </div>
 
       {/* Top KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={Users}
-          label="ประชาชนที่ได้รับบริการ"
-          value={kpis.uniqueCitizens.toLocaleString()}
-          sublabel={`${kpis.totalQuestions.toLocaleString()} คำถามรวม`}
-          trend={kpis.momGrowth}
+          label="คำถามรวมเดือนนี้"
+          value={kpis.thisMonthQuestions.toLocaleString()}
+          sublabel={`${kpis.lastMonthQuestions.toLocaleString()} คำถามในเดือนก่อน`}
+          trend={kpis.momGrowthQuestions}
           accent="primary"
         />
         <StatCard
+          icon={Users}
+          label="คำถามรวมปีนี้"
+          value={kpis.thisYearQuestions.toLocaleString()}
+          sublabel={`${kpis.lastYearQuestions.toLocaleString()} คำถามในปีก่อน`}
+          trend={kpis.yoyGrowthQuestions}
+          accent="primary"
+        />
+        <StatCard
+          icon={Users}
+          label="ประชาชนที่ได้รับบริการเดือนนี้"
+          value={kpis.thisMonthCitizens.toLocaleString()}
+          sublabel={`${kpis.lastMonthCitizens.toLocaleString()} คนในเดือนก่อน`}
+          trend={kpis.momGrowthCitizens}
+          accent="primary"
+        />
+        <StatCard
+          icon={Users}
+          label="ประชาชนที่ได้รับบริการปีนี้"
+          value={kpis.thisYearCitizens.toLocaleString()}
+          sublabel={`${kpis.lastYearCitizens.toLocaleString()} คนในปีก่อน`}
+          trend={kpis.yoyGrowthCitizens}
+          accent="primary"
+        />
+        {/* <StatCard
           icon={Clock}
           label="เวลาราชการที่ประหยัดได้"
           value={`${kpis.totalHoursSaved.toLocaleString()} ชม.`}
@@ -174,11 +198,11 @@ export default function ExecutivePage() {
           value={`${kpis.healthScore}/100`}
           sublabel={kpis.healthScore >= 90 ? 'ดีเยี่ยม' : 'ดี'}
           accent={kpis.healthScore >= 90 ? 'success' : 'primary'}
-        />
+        /> */}
       </div>
 
       {/* Health Breakdown + YoY */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-lg">สุขภาพระบบ (Health Score Breakdown)</CardTitle>
@@ -224,12 +248,12 @@ export default function ExecutivePage() {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </div> */}
 
       {/* Trend Chart */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">แนวโน้ม 6 เดือนย้อนหลัง</CardTitle>
+          <CardTitle className="text-lg">แนวโน้ม 12 เดือนย้อนหลัง</CardTitle>
           <CardDescription>จำนวนคำถามและความพึงพอใจ</CardDescription>
         </CardHeader>
         <CardContent>
@@ -257,7 +281,7 @@ export default function ExecutivePage() {
       </Card>
 
       {/* Two-column: Agency Scorecard + Top Issues */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">บัตรคะแนนหน่วยงาน</CardTitle>
@@ -315,10 +339,10 @@ export default function ExecutivePage() {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </div> */}
 
       {/* AI Weekly Brief */}
-      <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">
+      <Card className="border bg-white">
         <CardHeader>
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-primary/10">

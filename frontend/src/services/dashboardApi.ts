@@ -1,11 +1,10 @@
 import { api } from '@/lib/apiClient';
-import type { DashboardStats } from '@/types';
-import { dashboardStats as fallbackStats, agencyUsageData, weeklyTrendData, categoryData } from '@/data/mockData';
+import { dashboardStats, agencyUsageData, weeklyTrendData, categoryData } from '@/data/mockData';
 
 interface DashboardApiResponse {
   success: boolean;
   data: {
-    stats: DashboardStats;
+    stats: typeof dashboardStats;
     agencyUsage: typeof agencyUsageData;
     weeklyTrend: typeof weeklyTrendData;
     categoryData: typeof categoryData;
@@ -14,43 +13,41 @@ interface DashboardApiResponse {
 }
 
 async function fetchFromApi(): Promise<DashboardApiResponse> {
-  return api.get<DashboardApiResponse>('/api/v1/dashboard/stats');
+  return api.get<DashboardApiResponse>('/api/v1/dashboard/stats')
 }
 
-export async function fetchDashboardStats(): Promise<DashboardStats> {
+export async function fetchDashboardStats(): Promise<typeof dashboardStats> {
   try {
     const res = await fetchFromApi();
-    // Backend uses camelCase keys matching the original edge function output
     return res.data.stats;
   } catch {
-    console.warn('Dashboard API failed, using fallback');
-    return fallbackStats;
+    return dashboardStats;
   }
 }
 
-export async function fetchAgencyUsage() {
+export async function fetchAgencyUsage(): Promise<typeof agencyUsageData> {
   try {
     const res = await fetchFromApi();
     return res.data.agencyUsage;
   } catch {
-    return agencyUsageData;
+    return [];
   }
 }
 
-export async function fetchWeeklyTrend() {
+export async function fetchWeeklyTrend(): Promise<typeof weeklyTrendData> {
   try {
     const res = await fetchFromApi();
     return res.data.weeklyTrend;
   } catch {
-    return weeklyTrendData;
+    return [];
   }
 }
 
-export async function fetchCategoryData() {
+export async function fetchCategoryData(): Promise<typeof categoryData> {
   try {
     const res = await fetchFromApi();
     return res.data.categoryData;
   } catch {
-    return categoryData;
+    return [];
   }
 }
